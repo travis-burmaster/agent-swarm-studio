@@ -32,31 +32,44 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
     redis = request.app.state.redis
     now = datetime.now(timezone.utc)
 
-    # ── Load recent completed tasks for this agent ────────────────────
+    # ── Load recent completed tasks from ALL agents in the swarm ─────
     task_rows = await db.fetch(
         """
-        SELECT description, result, updated_at FROM tasks
-        WHERE assign_to = $1 AND status = 'completed' AND result IS NOT NULL
+        SELECT assign_to, description, result, updated_at FROM tasks
+        WHERE status = 'completed' AND result IS NOT NULL
         ORDER BY updated_at DESC
-        LIMIT 5
+        LIMIT 10
         """,
-        agent_id,
     )
     task_context = ""
     if task_rows:
-        parts = []
+        own_parts = []
+        other_parts = []
         for tr in reversed(task_rows):
             ts = tr["updated_at"].strftime("%Y-%m-%d %H:%M UTC") if tr["updated_at"] else ""
-            # Include up to 3000 chars per task result to stay within context limits
-            parts.append(
-                f"### Task: {tr['description']}\n"
+            agent = tr["assign_to"]
+            entry = (
+                f"### [{agent}] Task: {tr['description']}\n"
                 f"Completed: {ts}\n"
                 f"{tr['result'][:3000]}"
             )
-        task_context = (
-            "\n\n## Your Completed Task Results (reference these when asked about prior work):\n\n"
-            + "\n\n---\n\n".join(parts)
-        )
+            if agent == agent_id:
+                own_parts.append(entry)
+            else:
+                other_parts.append(entry)
+
+        sections = []
+        if own_parts:
+            sections.append(
+                "## Your Completed Task Results\n\n" + "\n\n---\n\n".join(own_parts)
+            )
+        if other_parts:
+            sections.append(
+                "## Other Agents' Task Results (cross-agent context)\n\n"
+                + "\n\n---\n\n".join(other_parts)
+            )
+        if sections:
+            task_context = "\n\n" + "\n\n".join(sections)
 
     # ── Load last 20 messages from Postgres ──────────────────────────
     rows = await db.fetch(

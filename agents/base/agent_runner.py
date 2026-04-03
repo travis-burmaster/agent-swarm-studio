@@ -179,37 +179,50 @@ async def update_task(pool: asyncpg.Pool, task_id: str, status: str, result: str
 
 # ── Context Loading ───────────────────────────────────────────────────────────
 
-async def load_task_history(pool: asyncpg.Pool, limit: int = 5) -> str:
+async def load_all_task_history(pool: asyncpg.Pool, limit: int = 10) -> str:
     """
-    Load this agent's recent completed task results from Postgres.
-    Gives the agent awareness of its own prior work.
+    Load recent completed task results from ALL agents in the swarm.
+    Each agent sees what every other agent has done — enabling cross-agent
+    awareness and building on prior findings across the full swarm.
     """
     rows = await pool.fetch(
         """
-        SELECT description, result, updated_at FROM tasks
-        WHERE assign_to = $1 AND status = 'completed' AND result IS NOT NULL
+        SELECT assign_to, description, result, updated_at FROM tasks
+        WHERE status = 'completed' AND result IS NOT NULL
         ORDER BY updated_at DESC
-        LIMIT $2
+        LIMIT $1
         """,
-        AGENT_ID,
         limit,
     )
     if not rows:
         return ""
 
-    parts = []
+    own_parts = []
+    other_parts = []
     for row in reversed(rows):
         ts = row["updated_at"].strftime("%Y-%m-%d %H:%M UTC") if row["updated_at"] else ""
-        # Cap each result to keep total context manageable
-        parts.append(
-            f"### Task: {row['description']}\n"
+        agent = row["assign_to"]
+        entry = (
+            f"### [{agent}] Task: {row['description']}\n"
             f"Completed: {ts}\n"
             f"{row['result'][:3000]}"
         )
-    return (
-        "\n\n## Your Prior Task History (use as context for the current task):\n\n"
-        + "\n\n---\n\n".join(parts)
-    )
+        if agent == AGENT_ID:
+            own_parts.append(entry)
+        else:
+            other_parts.append(entry)
+
+    sections = []
+    if own_parts:
+        sections.append(
+            "## Your Prior Task Results\n\n" + "\n\n---\n\n".join(own_parts)
+        )
+    if other_parts:
+        sections.append(
+            "## Other Agents' Task Results (cross-agent context)\n\n"
+            + "\n\n---\n\n".join(other_parts)
+        )
+    return "\n\n" + "\n\n".join(sections) if sections else ""
 
 
 async def load_company_context(r: aioredis.Redis, company_url: str) -> str:
@@ -366,8 +379,8 @@ async def main() -> None:
             await update_task(pool, task_id, "in_progress", "")
 
             try:
-                # Load this agent's own task history
-                task_history = await load_task_history(pool)
+                # Load task history from ALL agents in the swarm
+                task_history = await load_all_task_history(pool)
 
                 # Load prior agent context (other agents' findings)
                 prior_context = await load_company_context(r, company_url)

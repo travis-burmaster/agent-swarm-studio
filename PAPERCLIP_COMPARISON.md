@@ -37,11 +37,13 @@ embedded PGlite (dev) / PostgreSQL (prod), Express REST API.
 | Dimension | Agent Swarm Studio | Paperclip |
 |-----------|-------------------|-----------|
 | **Purpose** | Domain-specialist intelligence for company analysis | Horizontal operating system for any AI-agent company |
-| **Scope** | Vertical product (4 specialist agents, one workflow) | Horizontal platform (any agents, any workflows) |
+| **Scope** | Vertical product (4 specialist agents + orchestrator synthesis workflow) | Horizontal platform (any agents, any workflows) |
 | **Language** | Python | TypeScript |
-| **LLM access** | Direct Anthropic API or OAuth proxy | Pluggable adapter layer (Claude, Codex, Cursor, etc.) |
+| **LLM access** | Direct Anthropic API key or Claude OAuth Proxy sidecar (auto-selects based on `.env`) | Pluggable adapter layer (Claude, Codex, Cursor, etc.) |
 | **Agent identity** | SOUL.md + RULES.md + AGENTS.md + INSTRUCTIONS.md | Skill injection via `.agents/skills/` |
-| **Task queue** | Redis `brpop` | Redis `SETNX` atomic checkout |
+| **Cross-agent context** | Full swarm task history loaded before every task + chat; orchestrator sees all history | None — agents are isolated workers |
+| **Workflow orchestration** | `POST /workflow/analyze` → parallel dispatch → background poll → LLM synthesis | No built-in multi-agent convergence |
+| **Task queue** | Redis `brpop` + `SETNX` atomic checkout | Redis `SETNX` atomic checkout |
 | **Persistence** | PostgreSQL (raw asyncpg) | PostgreSQL via Drizzle ORM with migrations |
 | **Scheduling** | `scheduler.yml` (custom) | Heartbeat cron system |
 | **Governance** | Rules-based (RULES.md) | Approval gates + budget hard-stops |
@@ -79,21 +81,58 @@ Each agent has a deep domain prompt (500–800 lines) encoding:
 
 Paperclip agents are runtime-agnostic; specialization is left to the user.
 
-### 3. `TARGET_COMPANY_URL` — Shared Research Context
-A single environment variable synchronizes all four agents onto the same
-research target. The `agent_runner.py` also caches each agent's output in
-Redis (`agent:output:{agent_id}:{url_slug}`) so downstream agents can build
-on upstream findings before starting their own analysis.
+### 3. Cross-Agent Task Awareness (Full Swarm Memory)
+Every agent, before processing a new task, loads the last 10 completed task
+results from **all agents in the swarm** — not just its own. This means:
 
-Paperclip has no concept of a shared data context across agents.
+- The **lawyer** sees what the **data-researcher** found before writing its
+  legal analysis
+- The **sales** agent knows what **marketing** discovered about positioning
+- Re-analysis runs build on prior findings rather than starting from scratch
 
-### 4. agent-search-tool Integration
+This is implemented at three levels:
+
+| Layer | What it sees |
+|-------|-------------|
+| **Agent tasks** (`agent_runner.py → load_all_task_history()`) | Last 10 completed tasks from all agents, split into "your results" and "other agents' results" |
+| **Chat** (`chat.py`) | Same cross-agent awareness — chat with any agent about any agent's findings |
+| **Orchestrator synthesis** (`workflow.py`) | Current workflow results + last 20 historical tasks from all agents, with instructions to track changes over time |
+
+The system also maintains a Redis cache layer (`agent:output:{agent_id}:{url_slug}`)
+for fast cross-agent context loading during the same analysis session.
+
+Paperclip has no equivalent cross-agent memory. Its agents operate independently
+with no shared task history or awareness of other agents' outputs.
+
+### 4. Orchestrated Workflow with Synthesis
+The `POST /workflow/analyze` endpoint dispatches all 4 agents simultaneously,
+then a background poller watches for completion. When all agents finish, an
+**orchestrator LLM call** synthesizes all findings into a single executive
+briefing — cross-referencing overlaps, conflicts, and changes from prior
+analysis rounds. The synthesis is stored as both a workflow record and a
+visible task in the UI.
+
+Paperclip's task system is flat — there is no built-in concept of a
+multi-agent workflow that converges into a synthesis step.
+
+### 5. Claude OAuth Proxy Sidecar
+A Docker sidecar (`claude-proxy`) enables OAuth token-based access to the
+Anthropic API using `curl-cffi` with Chrome TLS fingerprinting. Agents auto-detect
+which auth mode to use based on `.env`:
+
+- `ANTHROPIC_API_KEY` set → direct API access
+- `ANTHROPIC_OAUTH_KEY` set → routes through the proxy at `http://claude-proxy:8319`
+
+This makes the swarm deployable without a paid API key if you have a Claude
+subscription with OAuth access.
+
+### 6. agent-search-tool Integration
 Every agent container has `agent-search-tool` (Travis's own library) installed,
 giving live access to web, GitHub, Reddit, Twitter, YouTube, LinkedIn, and
 Exa Search. This means agents work from real-time public data, not just their
 training knowledge.
 
-### 5. gitagent Registry Compatibility
+### 7. gitagent Registry Compatibility
 The `agent.yaml` at the root follows the
 [gitagent registry](https://registry.gitagent.sh) schema, making this swarm
 publishable to the registry with `gitagent publish`.
@@ -198,11 +237,14 @@ actions. Our RULES.md-based governance is softer (agents self-constrain via
 rules rather than hard gates). For a business intelligence swarm producing
 reports, hard gates add friction without much safety benefit.
 
-### Adapter Layer
+### Adapter Layer (Partial)
 Paperclip's pluggable adapter architecture (Claude, Codex, Cursor, etc.) would
 let us swap LLM backends. Our agents are Claude-specific by design — the
-specialist prompts are tuned for Claude's reasoning style. Adding an adapter
-layer is premature until there's a reason to switch models.
+specialist prompts are tuned for Claude's reasoning style. However, we now have
+a **partial equivalent**: the Claude OAuth Proxy sidecar abstracts auth method
+(API key vs. OAuth token) behind a single internal endpoint. Agents don't know
+or care which auth path is used — a step toward pluggability without the full
+adapter abstraction.
 
 ### Budget Hard-Stops
 Cost controls are on the roadmap but not implemented here. The `agent.yaml`
@@ -218,10 +260,12 @@ architecture:
 | Our Pattern | Paperclip Equivalent |
 |-------------|---------------------|
 | `AGENTS.md` as shared contributor + agent contract | `AGENTS.md` at repo root with identical purpose |
-| `skills/{domain}/` for agent sub-capabilities | `.agents/skills/{name}/SKILL.md` |
+| `.agents/skills/{name}/SKILL.md` for agent sub-capabilities | `.agents/skills/{name}/SKILL.md` (adopted from Paperclip) |
 | Redis pub/sub for real-time event streaming | Redis pub/sub events |
-| PostgreSQL for long-term agent memory | PostgreSQL for task/activity persistence |
+| PostgreSQL for long-term agent memory + cross-agent task history | PostgreSQL for task/activity persistence |
 | Shared workspace volume between agents | Shared file context between agents |
+| `SETNX` atomic task checkout | `SETNX` single-assignee invariant (adopted from Paperclip) |
+| Workflow dispatch → poll → synthesize pattern | No direct equivalent (Paperclip has heartbeats, not convergence) |
 
 This convergence suggests these are load-bearing patterns in multi-agent system
 design — not coincidences.
@@ -236,6 +280,14 @@ Paperclip is a **platform** — it could run this swarm as one of its "companies
 with the four agents as department heads. Agent Swarm Studio is a **product** —
 a fully-configured, opinionated intelligence operation that happens to be built
 on the same foundational patterns.
+
+Where Agent Swarm Studio has now moved beyond Paperclip's patterns is in
+**cross-agent memory and convergence**. Paperclip agents are isolated workers
+that execute tasks independently. Our agents maintain full awareness of the
+entire swarm's task history — every agent knows what every other agent has done,
+and the orchestrator synthesizes all findings (current and historical) into a
+unified briefing. This creates a true "ongoing discussion" across agents rather
+than siloed task execution.
 
 A future integration path: publish this swarm to the gitagent registry, then
 let Paperclip operators instantiate it as a pre-built company template.

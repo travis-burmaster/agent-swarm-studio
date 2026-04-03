@@ -25,6 +25,7 @@ import threading
 from pathlib import Path
 from typing import Any
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 import urllib.request
 
 try:
@@ -502,7 +503,10 @@ if __name__ == "__main__":
     print(f"[proxy] Token source: {source}")
     print(f"[proxy] Token: {tok[:25]}...")
     print(f"[proxy] curl-cffi: {'YES' if CFFI_AVAILABLE else 'NO — pip install curl-cffi'}")
-    server = HTTPServer((HOST, port), ProxyHandler)
+    class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+
+    server = ThreadedHTTPServer((HOST, port), ProxyHandler)
     print(f"[proxy] Listening on {HOST}:{port}")
     try:
         server.serve_forever()
