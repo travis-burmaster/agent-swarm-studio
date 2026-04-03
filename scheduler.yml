@@ -1,0 +1,143 @@
+# scheduler.yml — Task Scheduling Configuration
+# Business Intelligence Swarm · Agent Swarm Studio v2.0.0
+
+version: "2.0"
+
+# ── Global scheduler settings ─────────────────────────────────────────────────
+scheduler:
+  timezone: UTC
+  max_parallel_workflows: 3
+  default_retry_count: 2
+  default_retry_backoff_seconds: 30
+  task_ttl_seconds: 86400     # 24 hours — tasks expire from queue after this
+  result_ttl_seconds: 604800  # 7 days — results cached in Redis/Postgres
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+triggers:
+
+  # On-demand: triggered via POST /tasks with workflow: company_analysis
+  - name: on_demand_company_analysis
+    type: manual
+    workflow: company_analysis
+    description: "Full 4-agent company analysis triggered by user or API"
+
+  # Scheduled: daily refresh of any watched company URLs
+  - name: daily_watchlist_refresh
+    type: cron
+    schedule: "0 6 * * *"   # 6am UTC every day
+    workflow: company_analysis
+    description: "Refresh intelligence on all companies in the watchlist"
+    inputs:
+      source: env_list        # reads WATCHED_COMPANY_URLS env var (comma-separated)
+      url_key: TARGET_COMPANY_URL
+
+  # Scheduled: weekly deep competitive scan
+  - name: weekly_competitive_scan
+    type: cron
+    schedule: "0 8 * * 1"   # 8am UTC every Monday
+    workflow: competitive_sweep
+    description: "Weekly competitive intelligence sweep"
+
+  # Event-driven: triggered when new URL is posted to Redis channel
+  - name: url_submitted
+    type: event
+    channel: "swarm:new_url"  # Redis pub/sub channel
+    workflow: company_analysis
+    description: "Analyze a new company URL submitted via the UI or API"
+
+# ── Workflows ─────────────────────────────────────────────────────────────────
+workflows:
+
+  company_analysis:
+    description: "Full-spectrum analysis of a single company URL"
+    timeout_seconds: 600
+    steps:
+      - id: research
+        agent: data-researcher
+        task: |
+          Perform a complete market research profile of the company at TARGET_COMPANY_URL.
+          Use agent-search-tool to fetch the URL, search GitHub, Reddit, and web sources.
+          Produce a full data profile per INSTRUCTIONS.md.
+        parallel_group: initial_scan
+
+      - id: legal
+        agent: lawyer
+        task: |
+          Perform a complete legal and compliance scan of the company at TARGET_COMPANY_URL.
+          Read the ToS, Privacy Policy, and search for regulatory/litigation signals.
+          Produce a legal risk report per INSTRUCTIONS.md.
+        parallel_group: initial_scan
+
+      - id: marketing
+        agent: marketing
+        task: |
+          Perform a complete SEO and brand analysis of the company at TARGET_COMPANY_URL.
+          Audit on-page SEO, content strategy, social presence, and competitive positioning.
+          Produce a marketing intelligence report per INSTRUCTIONS.md.
+          Use the data-researcher's output if available.
+        depends_on: [research]
+
+      - id: sales
+        agent: sales
+        task: |
+          Perform a complete revenue and sales intelligence analysis of the company at TARGET_COMPANY_URL.
+          Map pricing model, ICP, GTM motion, and growth signals.
+          Produce a revenue intelligence playbook per INSTRUCTIONS.md.
+          Use outputs from data-researcher, lawyer, and marketing agents if available.
+        depends_on: [research, legal, marketing]
+
+      - id: synthesis
+        agent: backend          # handled by backend synthesizer, not an agent container
+        task: synthesize_all
+        depends_on: [research, legal, marketing, sales]
+
+  competitive_sweep:
+    description: "Competitive landscape analysis across multiple companies"
+    timeout_seconds: 1800
+    steps:
+      - id: identify_competitors
+        agent: data-researcher
+        task: |
+          Identify the top 5 competitors of the company at TARGET_COMPANY_URL.
+          Return a list of competitor URLs for downstream analysis.
+
+      - id: analyze_competitors
+        agent: data-researcher
+        task: |
+          For each competitor URL identified, produce a condensed market profile.
+          Focus on: positioning, pricing, tech stack, and funding stage.
+        depends_on: [identify_competitors]
+        for_each: competitor_urls   # iterates over list returned by previous step
+
+      - id: competitive_marketing
+        agent: marketing
+        task: |
+          Compare TARGET_COMPANY_URL's SEO and content strategy against each competitor.
+          Identify keyword gaps and positioning opportunities.
+        depends_on: [analyze_competitors]
+
+      - id: competitive_sales
+        agent: sales
+        task: |
+          Compare revenue models, pricing, and ICP profiles across TARGET_COMPANY_URL
+          and all identified competitors.
+          Produce a competitive battlecard.
+        depends_on: [analyze_competitors, competitive_marketing]
+
+# ── Notification hooks ─────────────────────────────────────────────────────────
+notifications:
+  on_workflow_complete:
+    - type: redis_publish
+      channel: "swarm:completed"
+      payload: { workflow_id: "{{workflow_id}}", company_url: "{{company_url}}", status: "complete" }
+
+  on_workflow_failed:
+    - type: redis_publish
+      channel: "swarm:errors"
+      payload: { workflow_id: "{{workflow_id}}", error: "{{error_message}}" }
+
+# ── Rate limits ───────────────────────────────────────────────────────────────
+rate_limits:
+  per_agent_concurrent_tasks: 1    # one task at a time per agent container
+  search_requests_per_minute: 20   # agent-search-tool throttle
+  llm_requests_per_minute: 10      # Anthropic API throttle

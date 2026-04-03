@@ -2,15 +2,22 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install agent runtime dependencies
-RUN pip install --no-cache-dir \
-    anthropic==0.34.2 \
-    openai==1.45.0 \
-    redis==5.0.8 \
-    asyncpg==0.29.0 \
-    pyyaml==6.0.2 \
-    python-dotenv==1.0.1
+# Install system dependencies for agent-search-tool channels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY agent_runner.py .
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy agent runner
+COPY agent_runner.py /app/agent_runner.py
+
+# Shared directory for SOUL.md, RULES.md, AGENTS.md, INSTRUCTIONS.md
+RUN mkdir -p /app/shared
+
+# Default command
 CMD ["python", "agent_runner.py"]

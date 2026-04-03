@@ -1,0 +1,159 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# agent.yaml  —  Agent Swarm Studio · Business Intelligence Swarm
+# gitagent-compatible configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: business-intelligence-swarm
+version: "2.0.0"
+description: >
+  A collaborative swarm of four specialist AI agents — Legal, Data Research,
+  Marketing/SEO, and Revenue/Sales — designed to analyze any company URL and
+  produce coordinated, actionable intelligence across all business dimensions.
+author: travis-burmaster
+registry: registry.gitagent.sh
+
+# ── Shared context loaded by every agent on startup ──────────────────────────
+shared_files:
+  - SOUL.md
+  - RULES.md
+  - AGENTS.md
+  - INSTRUCTIONS.md
+
+# ── Search tool integration ───────────────────────────────────────────────────
+search_tool:
+  package: agent-search-tool
+  version: ">=1.4.0"
+  entrypoint: agent_search.AgentReach
+  channels:
+    - web
+    - github
+    - reddit
+    - twitter
+    - youtube
+    - exa
+
+# ── Infrastructure ─────────────────────────────────────────────────────────
+infrastructure:
+  memory:
+    short_term: redis
+    long_term: postgres
+  workspace: /shared/workspace
+  max_concurrent_agents: 4
+  task_timeout_seconds: 600
+  url_context_key: TARGET_COMPANY_URL   # env var agents read for shared URL target
+
+# ── Agent definitions ─────────────────────────────────────────────────────────
+agents:
+
+  - id: lawyer
+    name: "Corporate Intelligence Lawyer"
+    model: claude-sonnet-4-6
+    role: legal
+    prompt: agents/lawyer/prompt.md
+    soul: SOUL.md
+    rules: RULES.md
+    instructions: INSTRUCTIONS.md
+    skills:
+      - .agents/skills/lawyer/SKILL.md
+      - .agents/skills/lawyer/references/compliance-check.md
+      - .agents/skills/lawyer/references/risk-analysis.md
+    capabilities:
+      - web_search
+      - document_analysis
+      - url_scrape
+    accepts_from:
+      - orchestrator
+    delegates_to:
+      - data-researcher
+    tags: [legal, compliance, risk, contracts]
+
+  - id: data-researcher
+    name: "Market Data Researcher"
+    model: claude-sonnet-4-6
+    role: research
+    prompt: agents/data-researcher/prompt.md
+    soul: SOUL.md
+    rules: RULES.md
+    instructions: INSTRUCTIONS.md
+    skills:
+      - .agents/skills/data-researcher/SKILL.md
+      - .agents/skills/data-researcher/references/competitive-intel.md
+      - .agents/skills/data-researcher/references/financial-research.md
+    capabilities:
+      - web_search
+      - github_search
+      - reddit_search
+      - url_scrape
+      - data_synthesis
+    accepts_from:
+      - orchestrator
+      - lawyer
+    delegates_to:
+      - marketing
+      - sales
+    tags: [research, data, market-intelligence, competitive-analysis]
+
+  - id: marketing
+    name: "SEO & Market Placement Specialist"
+    model: claude-sonnet-4-6
+    role: marketing
+    prompt: agents/marketing/prompt.md
+    soul: SOUL.md
+    rules: RULES.md
+    instructions: INSTRUCTIONS.md
+    skills:
+      - .agents/skills/marketing/SKILL.md
+      - .agents/skills/marketing/references/content-strategy.md
+      - .agents/skills/marketing/references/brand-positioning.md
+    capabilities:
+      - web_search
+      - url_scrape
+      - social_search
+    accepts_from:
+      - orchestrator
+      - data-researcher
+    delegates_to:
+      - sales
+    tags: [seo, marketing, content, brand, positioning]
+
+  - id: sales
+    name: "Revenue & Sales Intelligence Agent"
+    model: claude-sonnet-4-6
+    role: revenue
+    prompt: agents/sales/prompt.md
+    soul: SOUL.md
+    rules: RULES.md
+    instructions: INSTRUCTIONS.md
+    skills:
+      - .agents/skills/sales/SKILL.md
+      - .agents/skills/sales/references/icp-profiling.md
+      - .agents/skills/sales/references/revenue-modeling.md
+    capabilities:
+      - web_search
+      - url_scrape
+      - linkedin_search
+    accepts_from:
+      - orchestrator
+      - data-researcher
+      - marketing
+    delegates_to: []
+    tags: [sales, revenue, pipeline, icp, growth]
+
+# ── Orchestration flow ────────────────────────────────────────────────────────
+orchestration:
+  entry_point: orchestrator          # handled by backend, not an agent container
+  default_workflow: company_analysis
+  workflows:
+    company_analysis:
+      description: "Full-spectrum company analysis from a single URL"
+      steps:
+        - agent: data-researcher
+          task: "Research and profile the target company URL — financials, team, products, press, GitHub presence"
+        - agent: lawyer
+          task: "Legal scan of the company URL — ToS, privacy policy, compliance signals, litigation history, regulatory risk"
+        - agent: marketing
+          task: "SEO and brand analysis of the company URL — keyword landscape, content strategy, social presence, positioning gaps"
+        - agent: sales
+          task: "Revenue and sales intelligence from the company URL — pricing model, ICP signals, growth indicators, partnership opportunities"
+      parallel: true
+      synthesize: true
