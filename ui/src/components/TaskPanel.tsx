@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Agent, Task } from "../lib/api";
 
+const expandedSet = new Set<string>();
+
 interface TaskPanelProps {
   tasks: Task[];
   agents: Agent[];
@@ -22,6 +24,16 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove }: TaskPan
   const [description, setDescription] = useState("");
   const [assignTo, setAssignTo] = useState("orchestrator");
   const [submitting, setSubmitting] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => expandedSet);
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +113,24 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove }: TaskPan
             <p className="text-sm text-white leading-snug line-clamp-2">
               {task.description}
             </p>
-            <p className="text-[11px] text-muted">→ {task.assign_to}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted">→ {task.assign_to}</p>
+              {task.result && (
+                <button
+                  onClick={() => toggleExpand(task.id)}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {expanded.has(task.id) ? "▾ Hide result" : "▸ View result"}
+                </button>
+              )}
+            </div>
+            {task.result && expanded.has(task.id) && (
+              <div className="mt-1 bg-black/40 border border-border rounded-md px-3 py-2 max-h-64 overflow-y-auto">
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
+                  {task.result}
+                </pre>
+              </div>
+            )}
           </div>
         ))}
       </div>
