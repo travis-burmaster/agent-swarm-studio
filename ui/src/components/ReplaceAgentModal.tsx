@@ -79,7 +79,7 @@ export default function ReplaceAgentModal({
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleReplace();
               }}
-              placeholder="e.g. shreyas-lyzr/quant-sim"
+              placeholder="e.g. https://github.com/travis-burmaster/micro-agent-specialists/tree/main/financial-quant-sim/workspace"
               className="w-full bg-black/40 border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-muted focus:outline-none focus:border-indigo-500 transition-colors mb-3"
               disabled={loading}
               autoFocus

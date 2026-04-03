@@ -30,17 +30,28 @@ def _is_github_url(url: str) -> bool:
     return url.startswith("github.com/")
 
 
-def _parse_github_url(url: str) -> tuple[str, str]:
-    """Parse a GitHub URL into (owner, repo)."""
+def _parse_github_url(url: str) -> tuple[str, str, str]:
+    """Parse a GitHub URL into (owner, repo, subpath).
+
+    Supports:
+      - github.com/owner/repo
+      - github.com/owner/repo/tree/main/some/subdir
+      - github.com/owner/repo/tree/master/some/subdir
+    """
     url = url.strip().rstrip("/")
     url = re.sub(r"^https?://", "", url)
     url = re.sub(r"^github\.com/", "", url)
-    # Remove trailing .git if present
     url = re.sub(r"\.git$", "", url)
     parts = url.split("/")
     if len(parts) < 2 or not parts[0] or not parts[1]:
         raise ValueError(f"Invalid GitHub URL. Expected format: 'github.com/owner/repo'. Got: '{url}'")
-    return parts[0], parts[1]
+    owner, repo = parts[0], parts[1]
+    subpath = ""
+    # Handle /tree/<branch>/subdir paths
+    if len(parts) > 3 and parts[2] == "tree":
+        # parts[3] is the branch name, rest is the subpath
+        subpath = "/".join(parts[4:])
+    return owner, repo, subpath
 
 
 def parse_registry_url(url: str) -> tuple[str, str]:
@@ -56,7 +67,8 @@ def parse_registry_url(url: str) -> tuple[str, str]:
     url = url.strip().rstrip("/")
 
     if _is_github_url(url):
-        return _parse_github_url(url)
+        owner, repo, _subpath = _parse_github_url(url)
+        return owner, repo
 
     # Strip protocol
     url = re.sub(r"^https?://", "", url)
@@ -99,25 +111,35 @@ async def _list_github_dir(client: httpx.AsyncClient, owner: str, repo: str, pat
 
 
 async def _fetch_from_github(url: str) -> RegistryAgent:
-    """Fetch an agent definition from a GitHub repository."""
-    owner, repo = _parse_github_url(url) if _is_github_url(url) else parse_registry_url(url)
+    """Fetch an agent definition from a GitHub repository (or subdirectory)."""
+    if _is_github_url(url):
+        owner, repo, subpath = _parse_github_url(url)
+    else:
+        owner, repo = parse_registry_url(url)
+        subpath = ""
+
     canonical_url = f"https://github.com/{owner}/{repo}"
+    if subpath:
+        canonical_url += f"/tree/main/{subpath}"
+
+    # Prefix for all file paths within the repo
+    prefix = f"{subpath}/" if subpath else ""
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         # Fetch agent.yaml (required)
-        agent_yaml = await _fetch_github_file(client, owner, repo, "agent.yaml")
+        agent_yaml = await _fetch_github_file(client, owner, repo, f"{prefix}agent.yaml")
         if agent_yaml is None:
-            agent_yaml = await _fetch_github_file(client, owner, repo, "agent.yml")
+            agent_yaml = await _fetch_github_file(client, owner, repo, f"{prefix}agent.yml")
         if agent_yaml is None:
             raise ValueError(f"No agent.yaml or agent.yml found in {canonical_url}")
 
         agent_data = yaml.safe_load(agent_yaml)
 
         # Fetch prompt content — try prompt.md first, then SOUL.md
-        prompt_content = await _fetch_github_file(client, owner, repo, "prompt.md")
+        prompt_content = await _fetch_github_file(client, owner, repo, f"{prefix}prompt.md")
         if prompt_content is None:
-            soul_content = await _fetch_github_file(client, owner, repo, "SOUL.md")
-            rules_content = await _fetch_github_file(client, owner, repo, "RULES.md")
+            soul_content = await _fetch_github_file(client, owner, repo, f"{prefix}SOUL.md")
+            rules_content = await _fetch_github_file(client, owner, repo, f"{prefix}RULES.md")
             # Combine SOUL + RULES as the prompt if no prompt.md exists
             parts = []
             if soul_content:
@@ -132,7 +154,7 @@ async def _fetch_from_github(url: str) -> RegistryAgent:
         if skill_names and isinstance(skill_names[0], str):
             # Skills are directory names under skills/
             for skill_name in skill_names:
-                skill_dir_contents = await _list_github_dir(client, owner, repo, f"skills/{skill_name}")
+                skill_dir_contents = await _list_github_dir(client, owner, repo, f"{prefix}skills/{skill_name}")
                 for item in skill_dir_contents:
                     if item.get("type") == "file" and item["name"].endswith(".md"):
                         content = await _fetch_github_file(client, owner, repo, item["path"])
@@ -141,18 +163,21 @@ async def _fetch_from_github(url: str) -> RegistryAgent:
 
         # If no skills fetched from dirs, check for a flat skills/ with .md files
         if not skills:
-            skill_files = await _list_github_dir(client, owner, repo, "skills")
+            skill_files = await _list_github_dir(client, owner, repo, f"{prefix}skills")
             for item in skill_files:
                 if item.get("type") == "file" and item["name"].endswith(".md"):
                     content = await _fetch_github_file(client, owner, repo, item["path"])
                     if content:
                         skills.append({"name": item["name"], "content": content})
 
+    # Use agent name from yaml, fall back to last segment of subpath or repo name
+    agent_name = subpath.rstrip("/").rsplit("/", 1)[-1] if subpath else repo
+
     return RegistryAgent(
         owner=owner,
-        name=repo,
-        display_name=agent_data.get("name", repo),
-        role=agent_data.get("name", repo),
+        name=agent_name,
+        display_name=agent_data.get("name", agent_name),
+        role=agent_data.get("name", agent_name),
         description=agent_data.get("description", ""),
         prompt_content=prompt_content,
         skills=skills,
