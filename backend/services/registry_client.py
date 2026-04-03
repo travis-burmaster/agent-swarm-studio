@@ -17,6 +17,8 @@ class RegistryAgent:
     role: str
     description: str
     prompt_content: str
+    soul_content: str = ""
+    rules_content: str = ""
     skills: list[dict] = field(default_factory=list)  # [{"name": str, "content": str}]
     capabilities: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
@@ -135,18 +137,14 @@ async def _fetch_from_github(url: str) -> RegistryAgent:
 
         agent_data = yaml.safe_load(agent_yaml)
 
-        # Fetch prompt content — try prompt.md first, then SOUL.md
-        prompt_content = await _fetch_github_file(client, owner, repo, f"{prefix}prompt.md")
-        if prompt_content is None:
-            soul_content = await _fetch_github_file(client, owner, repo, f"{prefix}SOUL.md")
-            rules_content = await _fetch_github_file(client, owner, repo, f"{prefix}RULES.md")
-            # Combine SOUL + RULES as the prompt if no prompt.md exists
-            parts = []
-            if soul_content:
-                parts.append(soul_content)
-            if rules_content:
-                parts.append(rules_content)
-            prompt_content = "\n\n---\n\n".join(parts) if parts else ""
+        # Fetch prompt content, SOUL.md, and RULES.md
+        prompt_content = await _fetch_github_file(client, owner, repo, f"{prefix}prompt.md") or ""
+        soul_content = await _fetch_github_file(client, owner, repo, f"{prefix}SOUL.md") or ""
+        rules_content = await _fetch_github_file(client, owner, repo, f"{prefix}RULES.md") or ""
+
+        # If no prompt.md, use SOUL as the prompt
+        if not prompt_content and soul_content:
+            prompt_content = soul_content
 
         # Fetch skills from skills/ directory
         skills = []
@@ -180,6 +178,8 @@ async def _fetch_from_github(url: str) -> RegistryAgent:
         role=agent_data.get("name", agent_name),
         description=agent_data.get("description", ""),
         prompt_content=prompt_content,
+        soul_content=soul_content,
+        rules_content=rules_content,
         skills=skills,
         capabilities=agent_data.get("capabilities", []),
         tags=agent_data.get("tags", []),

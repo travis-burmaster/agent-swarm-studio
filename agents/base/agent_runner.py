@@ -43,8 +43,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://agentuser:agentpass@postg
 
 # Paths inside the container
 PROMPT_PATH = Path("/app/prompt.md")
-SOUL_PATH = Path("/app/shared/SOUL.md")
-RULES_PATH = Path("/app/shared/RULES.md")
+# Agent-local SOUL/RULES take priority over shared (for registry replacements)
+SOUL_PATH_LOCAL = Path("/app/SOUL.md")
+SOUL_PATH_SHARED = Path("/app/shared/SOUL.md")
+RULES_PATH_LOCAL = Path("/app/RULES.md")
+RULES_PATH_SHARED = Path("/app/shared/RULES.md")
 AGENTS_PATH = Path("/app/shared/AGENTS.md")
 INSTRUCTIONS_PATH = Path("/app/shared/INSTRUCTIONS.md")
 
@@ -74,11 +77,14 @@ def build_system_prompt() -> str:
     """
     parts = []
 
-    soul = load_text_file(SOUL_PATH, "SOUL.md")
+    # Prefer agent-local SOUL.md/RULES.md (from registry replacement), fall back to shared
+    soul_path = SOUL_PATH_LOCAL if SOUL_PATH_LOCAL.exists() else SOUL_PATH_SHARED
+    soul = load_text_file(soul_path, "SOUL.md")
     if soul:
         parts.append(f"# SHARED IDENTITY (SOUL.md)\n\n{soul}")
 
-    rules = load_text_file(RULES_PATH, "RULES.md")
+    rules_path = RULES_PATH_LOCAL if RULES_PATH_LOCAL.exists() else RULES_PATH_SHARED
+    rules = load_text_file(rules_path, "RULES.md")
     if rules:
         parts.append(f"# OPERATING RULES (RULES.md)\n\n{rules}")
 

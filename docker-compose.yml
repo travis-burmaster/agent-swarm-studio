@@ -156,6 +156,8 @@ services:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
       - ./agents/lawyer/prompt.md:/app/prompt.md:ro
+      - ./agents/lawyer/SOUL.md:/app/SOUL.md:ro
+      - ./agents/lawyer/RULES.md:/app/RULES.md:ro
       - ./.agents/skills/lawyer:/app/skills:ro
       - ./SOUL.md:/app/shared/SOUL.md:ro
       - ./RULES.md:/app/shared/RULES.md:ro
@@ -180,6 +182,8 @@ services:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
       - ./agents/data-researcher/prompt.md:/app/prompt.md:ro
+      - ./agents/data-researcher/SOUL.md:/app/SOUL.md:ro
+      - ./agents/data-researcher/RULES.md:/app/RULES.md:ro
       - ./.agents/skills/data-researcher:/app/skills:ro
       - ./SOUL.md:/app/shared/SOUL.md:ro
       - ./RULES.md:/app/shared/RULES.md:ro
@@ -204,6 +208,8 @@ services:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
       - ./agents/marketing/prompt.md:/app/prompt.md:ro
+      - ./agents/marketing/SOUL.md:/app/SOUL.md:ro
+      - ./agents/marketing/RULES.md:/app/RULES.md:ro
       - ./.agents/skills/marketing:/app/skills:ro
       - ./SOUL.md:/app/shared/SOUL.md:ro
       - ./RULES.md:/app/shared/RULES.md:ro
@@ -228,6 +234,8 @@ services:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
       - ./agents/sales/prompt.md:/app/prompt.md:ro
+      - ./agents/sales/SOUL.md:/app/SOUL.md:ro
+      - ./agents/sales/RULES.md:/app/RULES.md:ro
       - ./.agents/skills/sales:/app/skills:ro
       - ./SOUL.md:/app/shared/SOUL.md:ro
       - ./RULES.md:/app/shared/RULES.md:ro

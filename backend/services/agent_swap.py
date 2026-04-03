@@ -91,7 +91,7 @@ def get_replacement_info(slot_id: str) -> dict:
 
 
 def backup_agent(slot_id: str) -> None:
-    """Back up the current agent's prompt and skills before replacement."""
+    """Back up the current agent's prompt, identity files, and skills before replacement."""
     validate_slot(slot_id)
     backup = _backup_dir(slot_id)
 
@@ -100,10 +100,13 @@ def backup_agent(slot_id: str) -> None:
         shutil.rmtree(backup)
     backup.mkdir(parents=True)
 
-    # Back up prompt.md
-    prompt_src = _agents_dir(slot_id) / "prompt.md"
-    if prompt_src.exists():
-        shutil.copy2(prompt_src, backup / "prompt.md")
+    agent_dir = _agents_dir(slot_id)
+
+    # Back up prompt.md, SOUL.md, RULES.md
+    for filename in ("prompt.md", "SOUL.md", "RULES.md"):
+        src = agent_dir / filename
+        if src.exists():
+            shutil.copy2(src, backup / filename)
 
     # Back up skills
     skills_src = _skills_dir(slot_id)
@@ -129,12 +132,18 @@ def write_manifest(slot_id: str, original_name: str, original_role: str, registr
 
 
 def replace_agent_files(slot_id: str, registry_agent: RegistryAgent) -> None:
-    """Write the registry agent's prompt and skills to the agent slot."""
+    """Write the registry agent's prompt, identity files, and skills to the agent slot."""
     validate_slot(slot_id)
+    agent_dir = _agents_dir(slot_id)
 
     # Write new prompt.md
-    prompt_dest = _agents_dir(slot_id) / "prompt.md"
-    prompt_dest.write_text(registry_agent.prompt_content, encoding="utf-8")
+    (agent_dir / "prompt.md").write_text(registry_agent.prompt_content, encoding="utf-8")
+
+    # Write SOUL.md and RULES.md if the registry agent provides them
+    if registry_agent.soul_content:
+        (agent_dir / "SOUL.md").write_text(registry_agent.soul_content, encoding="utf-8")
+    if registry_agent.rules_content:
+        (agent_dir / "RULES.md").write_text(registry_agent.rules_content, encoding="utf-8")
 
     # Write new skills
     skills_dest = _skills_dir(slot_id)
@@ -205,11 +214,13 @@ def restore_agent(slot_id: str) -> dict:
         raise FileNotFoundError(f"No backup found for agent '{slot_id}'")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    agent_dir = _agents_dir(slot_id)
 
-    # Restore prompt.md
-    backup_prompt = backup / "prompt.md"
-    if backup_prompt.exists():
-        shutil.copy2(backup_prompt, _agents_dir(slot_id) / "prompt.md")
+    # Restore prompt.md, SOUL.md, RULES.md
+    for filename in ("prompt.md", "SOUL.md", "RULES.md"):
+        backup_file = backup / filename
+        if backup_file.exists():
+            shutil.copy2(backup_file, agent_dir / filename)
 
     # Restore skills
     backup_skills = backup / "skills"
