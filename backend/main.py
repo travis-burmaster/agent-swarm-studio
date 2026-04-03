@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import agents, chat, tasks
+from routers import agents, chat, tasks, workflow
 from ws.events import event_manager
 
 load_dotenv()
@@ -61,6 +61,16 @@ async def lifespan(app: FastAPI):
                 content     TEXT NOT NULL,
                 created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
+
+            CREATE TABLE IF NOT EXISTS workflows (
+                id          UUID PRIMARY KEY,
+                company_url TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'running',
+                task_ids    TEXT,
+                synthesis   TEXT,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
         """)
 
     # ── Start Redis pub/sub → WebSocket broadcaster ─────────────────
@@ -97,6 +107,7 @@ app.add_middleware(
 app.include_router(agents.router, prefix="/agents", tags=["agents"])
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
+app.include_router(workflow.router, prefix="/workflow", tags=["workflow"])
 
 # WebSocket endpoint lives in ws/events.py but is registered here
 from ws.events import router as ws_router  # noqa: E402
@@ -106,3 +117,10 @@ app.include_router(ws_router, tags=["websocket"])
 @app.get("/health", tags=["health"])
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/config", tags=["config"])
+async def get_config():
+    return {
+        "target_company_url": os.getenv("TARGET_COMPANY_URL", ""),
+    }

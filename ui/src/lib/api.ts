@@ -57,4 +57,19 @@ export const sendChat = (
 ): Promise<{ agent_id: string; reply: string }> =>
   api.post(`/chat/${agentId}`, { message }).then((r) => r.data);
 
+// ── Workflow functions ────────────────────────────────────────────────────────
+
+export interface Workflow {
+  workflow_id: string;
+  company_url: string;
+  status: string;
+  tasks: Record<string, string>;
+}
+
+export const startAnalysis = (companyUrl: string): Promise<Workflow> =>
+  api.post<Workflow>("/workflow/analyze", { company_url: companyUrl }).then((r) => r.data);
+
+export const getConfig = (): Promise<{ target_company_url: string }> =>
+  api.get<{ target_company_url: string }>("/config").then((r) => r.data);
+
 export default api;
