@@ -4,8 +4,8 @@ import { useAgents } from "./hooks/useAgents";
 import { useTasks } from "./hooks/useTasks";
 import AgentBoard from "./components/AgentBoard";
 import TaskPanel from "./components/TaskPanel";
-import ChatDrawer from "./components/ChatDrawer";
-import LogStream from "./components/LogStream";
+import { ChatDrawer } from "./components/ChatDrawer";
+import { LogStream } from "./components/LogStream";
 
 export default function App() {
   const { agents, refresh: refreshAgents } = useAgents();

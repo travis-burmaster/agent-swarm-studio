@@ -179,6 +179,39 @@ async def update_task(pool: asyncpg.Pool, task_id: str, status: str, result: str
 
 # ── Context Loading ───────────────────────────────────────────────────────────
 
+async def load_task_history(pool: asyncpg.Pool, limit: int = 5) -> str:
+    """
+    Load this agent's recent completed task results from Postgres.
+    Gives the agent awareness of its own prior work.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT description, result, updated_at FROM tasks
+        WHERE assign_to = $1 AND status = 'completed' AND result IS NOT NULL
+        ORDER BY updated_at DESC
+        LIMIT $2
+        """,
+        AGENT_ID,
+        limit,
+    )
+    if not rows:
+        return ""
+
+    parts = []
+    for row in reversed(rows):
+        ts = row["updated_at"].strftime("%Y-%m-%d %H:%M UTC") if row["updated_at"] else ""
+        # Cap each result to keep total context manageable
+        parts.append(
+            f"### Task: {row['description']}\n"
+            f"Completed: {ts}\n"
+            f"{row['result'][:3000]}"
+        )
+    return (
+        "\n\n## Your Prior Task History (use as context for the current task):\n\n"
+        + "\n\n---\n\n".join(parts)
+    )
+
+
 async def load_company_context(r: aioredis.Redis, company_url: str) -> str:
     """
     Load prior agent findings for this company from Redis cache.
@@ -333,13 +366,18 @@ async def main() -> None:
             await update_task(pool, task_id, "in_progress", "")
 
             try:
-                # Load prior agent context
+                # Load this agent's own task history
+                task_history = await load_task_history(pool)
+
+                # Load prior agent context (other agents' findings)
                 prior_context = await load_company_context(r, company_url)
 
                 # Build the full user message
                 user_message = description
                 if company_url:
                     user_message = f"TARGET_COMPANY_URL: {company_url}\n\n{description}"
+                if task_history:
+                    user_message += task_history
                 if prior_context:
                     user_message += prior_context
 
