@@ -5,11 +5,17 @@ Agent Swarm Studio v2.0.0
 Loads shared identity files (SOUL.md, RULES.md, AGENTS.md, INSTRUCTIONS.md),
 initializes agent-search-tool, and processes tasks from Redis queue.
 
+LLM access (pick one):
+  Option A: ANTHROPIC_API_KEY       — direct Anthropic API access
+  Option B: ANTHROPIC_OAUTH_KEY     — routes through Claude OAuth Proxy (CLAUDE_PROXY_URL)
+
 Environment variables:
   AGENT_ID              — unique agent identifier (lawyer, data-researcher, marketing, sales)
   REDIS_URL             — Redis connection string
   DATABASE_URL          — Postgres DSN
-  ANTHROPIC_API_KEY     — Anthropic API key
+  ANTHROPIC_API_KEY     — Anthropic API key (direct access)
+  ANTHROPIC_OAUTH_KEY   — OAuth token (uses proxy)
+  CLAUDE_PROXY_URL      — URL of the Claude OAuth Proxy service
   TARGET_COMPANY_URL    — shared company URL context for all agents (set per workflow)
   AGENT_SEARCH_CONFIG   — optional path to agent-search config dir
 """
@@ -173,6 +179,39 @@ async def update_task(pool: asyncpg.Pool, task_id: str, status: str, result: str
 
 # ── Context Loading ───────────────────────────────────────────────────────────
 
+async def load_task_history(pool: asyncpg.Pool, limit: int = 5) -> str:
+    """
+    Load this agent's recent completed task results from Postgres.
+    Gives the agent awareness of its own prior work.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT description, result, updated_at FROM tasks
+        WHERE assign_to = $1 AND status = 'completed' AND result IS NOT NULL
+        ORDER BY updated_at DESC
+        LIMIT $2
+        """,
+        AGENT_ID,
+        limit,
+    )
+    if not rows:
+        return ""
+
+    parts = []
+    for row in reversed(rows):
+        ts = row["updated_at"].strftime("%Y-%m-%d %H:%M UTC") if row["updated_at"] else ""
+        # Cap each result to keep total context manageable
+        parts.append(
+            f"### Task: {row['description']}\n"
+            f"Completed: {ts}\n"
+            f"{row['result'][:3000]}"
+        )
+    return (
+        "\n\n## Your Prior Task History (use as context for the current task):\n\n"
+        + "\n\n---\n\n".join(parts)
+    )
+
+
 async def load_company_context(r: aioredis.Redis, company_url: str) -> str:
     """
     Load prior agent findings for this company from Redis cache.
@@ -255,7 +294,25 @@ async def main() -> None:
     await update_status(r, "idle")
     logger.info("Agent %s ready — listening on queue '%s'", AGENT_ID, TASK_QUEUE_KEY)
 
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    # Initialize LLM client — proxy mode (OAuth) or direct API key
+    oauth_key = os.getenv("ANTHROPIC_OAUTH_KEY", "").strip()
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    proxy_url = os.getenv("CLAUDE_PROXY_URL", "http://claude-proxy:8319")
+
+    if oauth_key:
+        # Route through Claude OAuth Proxy — proxy handles auth headers
+        logger.info("Using Claude OAuth Proxy at %s", proxy_url)
+        client = anthropic.Anthropic(
+            base_url=proxy_url,
+            api_key="oauth-proxy",  # placeholder — proxy injects real auth
+        )
+    elif api_key:
+        logger.info("Using direct Anthropic API key")
+        client = anthropic.Anthropic(api_key=api_key)
+    else:
+        raise RuntimeError(
+            "No LLM credentials configured. Set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_KEY in .env"
+        )
 
     # ── Event loop ─────────────────────────────────────────────────────────────
     while True:
@@ -268,6 +325,20 @@ async def main() -> None:
             task = json.loads(raw)
             task_id = task.get("task_id", "unknown")
             description = task.get("description", "")
+
+            # ── Atomic task checkout (Paperclip pattern) ──────────────────────
+            # Acquire an exclusive lock before processing. Prevents duplicate
+            # execution if the same task_id is retried or re-queued on error,
+            # and is safe for future horizontal scaling (multiple containers
+            # per agent type). Lock expires after 10 minutes as a safety net.
+            lock_key = f"task:lock:{task_id}"
+            acquired = await r.set(lock_key, AGENT_ID, nx=True, ex=600)
+            if not acquired:
+                logger.warning(
+                    "Task %s already locked by another worker — skipping", task_id
+                )
+                continue
+            # ─────────────────────────────────────────────────────────────────
 
             # Extract company URL context
             task_context = task.get("context", {})
@@ -295,13 +366,18 @@ async def main() -> None:
             await update_task(pool, task_id, "in_progress", "")
 
             try:
-                # Load prior agent context
+                # Load this agent's own task history
+                task_history = await load_task_history(pool)
+
+                # Load prior agent context (other agents' findings)
                 prior_context = await load_company_context(r, company_url)
 
                 # Build the full user message
                 user_message = description
                 if company_url:
                     user_message = f"TARGET_COMPANY_URL: {company_url}\n\n{description}"
+                if task_history:
+                    user_message += task_history
                 if prior_context:
                     user_message += prior_context
 

@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy shared identity files (mounted at runtime via volumes, but included as fallback)
-COPY --chown=nobody:nogroup agents/base/agent_runner.py /app/agent_runner.py
+# Copy agent runner
+COPY agent_runner.py /app/agent_runner.py
 
 # Shared directory for SOUL.md, RULES.md, AGENTS.md, INSTRUCTIONS.md
 RUN mkdir -p /app/shared

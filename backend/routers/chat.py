@@ -32,6 +32,32 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
     redis = request.app.state.redis
     now = datetime.now(timezone.utc)
 
+    # ── Load recent completed tasks for this agent ────────────────────
+    task_rows = await db.fetch(
+        """
+        SELECT description, result, updated_at FROM tasks
+        WHERE assign_to = $1 AND status = 'completed' AND result IS NOT NULL
+        ORDER BY updated_at DESC
+        LIMIT 5
+        """,
+        agent_id,
+    )
+    task_context = ""
+    if task_rows:
+        parts = []
+        for tr in reversed(task_rows):
+            ts = tr["updated_at"].strftime("%Y-%m-%d %H:%M UTC") if tr["updated_at"] else ""
+            # Include up to 3000 chars per task result to stay within context limits
+            parts.append(
+                f"### Task: {tr['description']}\n"
+                f"Completed: {ts}\n"
+                f"{tr['result'][:3000]}"
+            )
+        task_context = (
+            "\n\n## Your Completed Task Results (reference these when asked about prior work):\n\n"
+            + "\n\n---\n\n".join(parts)
+        )
+
     # ── Load last 20 messages from Postgres ──────────────────────────
     rows = await db.fetch(
         """
@@ -47,11 +73,22 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
     # Append current user message
     history.append({"role": "user", "content": body.message})
 
-    # ── Call Anthropic ───────────────────────────────────────────────
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    # ── Call Anthropic (proxy or direct) ────────────────────────────
+    oauth_key = os.getenv("ANTHROPIC_OAUTH_KEY", "").strip()
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    proxy_url = os.getenv("CLAUDE_PROXY_URL", "http://claude-proxy:8319")
+
+    if oauth_key:
+        client = anthropic.Anthropic(base_url=proxy_url, api_key="oauth-proxy")
+    else:
+        client = anthropic.Anthropic(api_key=api_key)
+
+    agent_name = agent_cfg.get("name", agent_cfg["id"])
+    agent_role = agent_cfg.get("role", "assistant")
     system_prompt = (
-        f"You are {agent_cfg['role']}. Goal: {agent_cfg['goal']}. "
+        f"You are {agent_name} ({agent_role}). "
         "Be concise and focus on your speciality."
+        + task_context
     )
     response = client.messages.create(
         model="claude-haiku-4-5",

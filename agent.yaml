@@ -54,9 +54,9 @@ agents:
     rules: RULES.md
     instructions: INSTRUCTIONS.md
     skills:
-      - skills/lawyer/contract-review.md
-      - skills/lawyer/compliance-check.md
-      - skills/lawyer/risk-analysis.md
+      - .agents/skills/lawyer/SKILL.md
+      - .agents/skills/lawyer/references/compliance-check.md
+      - .agents/skills/lawyer/references/risk-analysis.md
     capabilities:
       - web_search
       - document_analysis
@@ -76,9 +76,9 @@ agents:
     rules: RULES.md
     instructions: INSTRUCTIONS.md
     skills:
-      - skills/data-researcher/market-analysis.md
-      - skills/data-researcher/competitive-intel.md
-      - skills/data-researcher/financial-research.md
+      - .agents/skills/data-researcher/SKILL.md
+      - .agents/skills/data-researcher/references/competitive-intel.md
+      - .agents/skills/data-researcher/references/financial-research.md
     capabilities:
       - web_search
       - github_search
@@ -102,9 +102,9 @@ agents:
     rules: RULES.md
     instructions: INSTRUCTIONS.md
     skills:
-      - skills/marketing/seo-audit.md
-      - skills/marketing/content-strategy.md
-      - skills/marketing/brand-positioning.md
+      - .agents/skills/marketing/SKILL.md
+      - .agents/skills/marketing/references/content-strategy.md
+      - .agents/skills/marketing/references/brand-positioning.md
     capabilities:
       - web_search
       - url_scrape
@@ -125,9 +125,9 @@ agents:
     rules: RULES.md
     instructions: INSTRUCTIONS.md
     skills:
-      - skills/sales/pipeline-analysis.md
-      - skills/sales/icp-profiling.md
-      - skills/sales/revenue-modeling.md
+      - .agents/skills/sales/SKILL.md
+      - .agents/skills/sales/references/icp-profiling.md
+      - .agents/skills/sales/references/revenue-modeling.md
     capabilities:
       - web_search
       - url_scrape
