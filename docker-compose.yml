@@ -92,8 +92,11 @@ services:
       CLAUDE_PROXY_URL: http://claude-proxy:8319
       AGENTS_CONFIG: /app/agent.yaml
       TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+      PROJECT_ROOT: /app
     volumes:
-      - ./agent.yaml:/app/agent.yaml:ro
+      - ./agent.yaml:/app/agent.yaml
+      - ./agents:/app/agents
+      - ./.agents:/app/.agents
       - workspace:/shared/workspace
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

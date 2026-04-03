@@ -10,15 +10,35 @@ import yaml
 
 from services.registry_client import RegistryAgent
 
-# Paths relative to the project root (mapped via Docker volumes or local dev)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # agent-swarm-studio/
+# Resolve project root — in Docker the backend runs from /app/ and volumes
+# mount the project files. Use PROJECT_ROOT env var if set, otherwise walk
+# up from this file's location to find agent.yaml.
+import os as _os
+
+def _find_project_root() -> Path:
+    """Find the project root by env var or by walking up to find agent.yaml."""
+    env_root = _os.getenv("PROJECT_ROOT")
+    if env_root:
+        return Path(env_root)
+    # Walk up from this file looking for agent.yaml
+    candidate = Path(__file__).resolve().parent.parent.parent
+    if (candidate / "agent.yaml").exists():
+        return candidate
+    # In Docker, agent.yaml is mounted at /app/agent.yaml
+    if Path("/app/agent.yaml").exists():
+        return Path("/app")
+    return candidate
+
+PROJECT_ROOT = _find_project_root()
 
 
 def _agents_dir(slot_id: str) -> Path:
+    # In Docker: /app/agents/<slot> (volume-mounted from ./agents/<slot>)
     return PROJECT_ROOT / "agents" / slot_id
 
 
 def _skills_dir(slot_id: str) -> Path:
+    # In Docker: /app/.agents/skills/<slot> (volume-mounted from ./.agents/skills/<slot>)
     return PROJECT_ROOT / ".agents" / "skills" / slot_id
 
 
@@ -124,6 +144,7 @@ def replace_agent_files(slot_id: str, registry_agent: RegistryAgent) -> None:
 
     for skill in registry_agent.skills:
         skill_file = skills_dest / skill["name"]
+        skill_file.parent.mkdir(parents=True, exist_ok=True)
         skill_file.write_text(skill["content"], encoding="utf-8")
 
     # If no skills provided by registry, write a minimal SKILL.md
