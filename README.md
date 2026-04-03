@@ -206,7 +206,64 @@ gitagent publish --config agent.yaml
 
 ## Extending the Swarm
 
-### Add a new agent
+### Replace an agent with one from GitHub
+
+Any agent slot can be hot-swapped with an agent from a GitHub repo (or the
+gitagent registry). The replacement agent brings its own SOUL.md, RULES.md,
+prompt, and skills — while keeping the swarm's shared infrastructure
+(AGENTS.md, INSTRUCTIONS.md, agent-search-tool, Redis/Postgres).
+
+**From the UI:**
+
+1. Click the **...** menu on any agent card
+2. Select **Replace with Registry Agent**
+3. Enter a GitHub URL or shorthand:
+   ```
+   https://github.com/travis-burmaster/micro-agent-specialists/tree/main/financial-quant-sim/workspace
+   ```
+   or just `owner/repo` for root-level agents
+4. Click **Replace** — the agent's files are swapped and the container restarts
+
+To revert, click **...** → **Restore Original**.
+
+**From the CLI:**
+
+```bash
+# Replace the sales agent with quant-sim
+python scripts/replace_agent.py \
+  --slot sales \
+  --registry https://github.com/travis-burmaster/micro-agent-specialists/tree/main/financial-quant-sim/workspace
+
+# Check replacement status
+python scripts/replace_agent.py --slot sales --info
+
+# Restore the original agent
+python scripts/replace_agent.py --slot sales --restore
+```
+
+**From the API:**
+
+```bash
+# Replace
+curl -X POST http://localhost:8000/agents/sales/replace \
+  -H "Content-Type: application/json" \
+  -d '{"registry_url": "https://github.com/travis-burmaster/micro-agent-specialists/tree/main/financial-quant-sim/workspace"}'
+
+# Check status
+curl http://localhost:8000/agents/sales/replacement-info
+
+# Restore
+curl -X POST http://localhost:8000/agents/sales/restore
+```
+
+**Agent repo format:** The GitHub repo (or subdirectory) should contain:
+- `agent.yaml` — agent config (name, skills, tags)
+- `SOUL.md` — agent identity and personality
+- `RULES.md` — behavioral constraints
+- `prompt.md` *(optional)* — specialist prompt (falls back to SOUL.md)
+- `skills/` — skill files organized by name
+
+### Add a new agent from scratch
 1. Create `agents/{name}/prompt.md` with the specialist prompt
 2. Create `skills/{name}/` directory with skill files
 3. Add the agent definition to `agent.yaml`
