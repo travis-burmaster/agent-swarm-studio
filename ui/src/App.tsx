@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Agent, Task, startAnalysis, askAllAgents, getConfig } from "./lib/api";
+import { Agent, Task, startAnalysis, askAllAgents, getConfig, restoreAgent } from "./lib/api";
 import { useAgents } from "./hooks/useAgents";
 import { useTasks } from "./hooks/useTasks";
 import AgentBoard from "./components/AgentBoard";
 import TaskPanel from "./components/TaskPanel";
 import { ChatDrawer } from "./components/ChatDrawer";
 import { LogStream } from "./components/LogStream";
+import ReplaceAgentModal from "./components/ReplaceAgentModal";
 
 export default function App() {
   const { agents, refresh: refreshAgents } = useAgents();
@@ -17,6 +18,7 @@ export default function App() {
   const [asking, setAsking] = useState(false);
   const [showSynthesis, setShowSynthesis] = useState<Task | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [replaceTarget, setReplaceTarget] = useState<Agent | null>(null);
 
   // Prepopulate URL from backend config
   useEffect(() => {
@@ -59,6 +61,16 @@ export default function App() {
       console.error("Question dispatch failed:", err);
     } finally {
       setAsking(false);
+    }
+  };
+
+  const handleRestore = async (agentId: string) => {
+    if (!confirm(`Restore the original agent for slot "${agentId}"?`)) return;
+    try {
+      await restoreAgent(agentId);
+      await refreshAgents();
+    } catch (err) {
+      console.error("Restore failed:", err);
     }
   };
 
@@ -207,7 +219,12 @@ export default function App() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left — agents + log */}
         <main className="flex-1 flex flex-col gap-5 px-6 py-5 overflow-y-auto min-w-0">
-          <AgentBoard agents={agents} onSelectAgent={setSelectedAgent} />
+          <AgentBoard
+            agents={agents}
+            onSelectAgent={setSelectedAgent}
+            onReplace={setReplaceTarget}
+            onRestore={handleRestore}
+          />
           <LogStream />
         </main>
 
@@ -241,6 +258,18 @@ export default function App() {
           key={selectedAgent.id}
           agent={selectedAgent}
           onClose={() => setSelectedAgent(null)}
+        />
+      )}
+
+      {replaceTarget && (
+        <ReplaceAgentModal
+          agentId={replaceTarget.id}
+          agentName={replaceTarget.role || replaceTarget.id}
+          onClose={() => setReplaceTarget(null)}
+          onReplaced={() => {
+            setReplaceTarget(null);
+            refreshAgents();
+          }}
         />
       )}
     </div>

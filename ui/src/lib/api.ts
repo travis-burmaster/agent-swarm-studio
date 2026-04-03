@@ -34,6 +34,34 @@ export interface Task {
   updated_at: string;
 }
 
+// ── Replacement types ────────────────────────────────────────────────────────
+
+export interface ReplaceResult {
+  agent_id: string;
+  new_name: string;
+  new_role: string;
+  registry_url: string;
+  backup_exists: boolean;
+  status: string;
+}
+
+export interface RestoreResult {
+  agent_id: string;
+  restored_name: string;
+  restored_role: string;
+  status: string;
+}
+
+export interface ReplacementInfo {
+  agent_id: string;
+  is_replaced: boolean;
+  registry_url: string | null;
+  replacement_name: string | null;
+  replaced_at: string | null;
+  backup_exists: boolean;
+  original_name: string | null;
+}
+
 // ── API functions ─────────────────────────────────────────────────────────────
 
 export const getAgents = (): Promise<Agent[]> =>
@@ -82,5 +110,27 @@ export const askAllAgents = (
 
 export const getConfig = (): Promise<{ target_company_url: string }> =>
   api.get<{ target_company_url: string }>("/config").then((r) => r.data);
+
+// ── Agent replacement functions ──────────────────────────────────────────────
+
+export const replaceAgent = (
+  agentId: string,
+  registryUrl: string
+): Promise<ReplaceResult> =>
+  api
+    .post<ReplaceResult>(`/agents/${agentId}/replace`, {
+      registry_url: registryUrl,
+    })
+    .then((r) => r.data);
+
+export const restoreAgent = (agentId: string): Promise<RestoreResult> =>
+  api.post<RestoreResult>(`/agents/${agentId}/restore`).then((r) => r.data);
+
+export const getReplacementInfo = (
+  agentId: string
+): Promise<ReplacementInfo> =>
+  api
+    .get<ReplacementInfo>(`/agents/${agentId}/replacement-info`)
+    .then((r) => r.data);
 
 export default api;

@@ -5,9 +5,11 @@ import AgentCard from "./AgentCard";
 interface AgentBoardProps {
   agents: Agent[];
   onSelectAgent: (agent: Agent) => void;
+  onReplace: (agent: Agent) => void;
+  onRestore: (agentId: string) => void;
 }
 
-export default function AgentBoard({ agents, onSelectAgent }: AgentBoardProps) {
+export default function AgentBoard({ agents, onSelectAgent, onReplace, onRestore }: AgentBoardProps) {
   return (
     <section>
       <h2 className="text-xs font-semibold uppercase tracking-widest text-muted mb-3">
@@ -24,6 +26,8 @@ export default function AgentBoard({ agents, onSelectAgent }: AgentBoardProps) {
               key={agent.id}
               agent={agent}
               onClick={() => onSelectAgent(agent)}
+              onReplace={onReplace}
+              onRestore={onRestore}
             />
           ))}
         </div>
