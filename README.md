@@ -1,8 +1,9 @@
 # Agent Swarm Studio — Business Intelligence Swarm
 
-A collaborative swarm of four AI specialists that analyze any company URL from
-every angle simultaneously. Point the swarm at a URL and get a comprehensive
-intelligence brief covering legal, market, SEO/marketing, and revenue dimensions.
+A collaborative swarm of four AI specialists that analyze any company URL —
+or answer any question — from every angle simultaneously. Point the swarm at
+a URL for a quick scan, or ask a free-form question and get specialist
+perspectives from all agents with an orchestrator-synthesized summary.
 
 ---
 
@@ -35,26 +36,46 @@ cp .env.example .env
 docker compose up --build
 ```
 
-### 3. Run a company analysis
+### 3. Use the UI
+
+Open **http://localhost:3000**. There are two ways to engage the swarm:
+
+**Ask the Swarm** — Type any question in the top bar and click **Ask All Agents**.
+Each agent answers from its specialist perspective, and the orchestrator
+synthesizes a unified summary when all agents complete. If a URL is set in the
+Analyze bar, it's included as context.
+
+**Analyze a URL** — Enter a company URL and click **Analyze** for a quick
+full-spectrum scan (legal, market, SEO, revenue) with orchestrator synthesis.
+
+When the orchestrator summary is ready, a **View Summary** button appears in the
+header.
+
+You can also **Chat with any agent** directly via the Chat buttons on each agent
+card, or **Chat with the Orchestrator** from the task panel to ask follow-up
+questions across all findings.
+
+### 4. Use the API
+
 ```bash
-# Via API
+# Ask a question across all agents
+curl -X POST http://localhost:8000/workflow/question \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What are the risks of entering the fintech market?", "company_url": "https://stripe.com"}'
+
+# Run a URL analysis
+curl -X POST http://localhost:8000/workflow/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"company_url": "https://stripe.com"}'
+
+# Create a single task for one agent
 curl -X POST http://localhost:8000/tasks \
   -H "Content-Type: application/json" \
-  -d '{
-    "description": "Full business intelligence analysis",
-    "workflow": "company_analysis",
-    "context": {
-      "company_url": "https://stripe.com"
-    }
-  }'
-
-# Or set TARGET_COMPANY_URL in .env and trigger all agents:
-curl -X POST http://localhost:8000/tasks \
-  -d '{"description": "Analyze the target company URL", "assign_to": "data-researcher"}'
+  -d '{"description": "Analyze pricing strategy", "assign_to": "sales"}'
 ```
 
-### 4. Watch in real-time
-Open the UI at **http://localhost:3000** or subscribe to the WebSocket:
+### 5. Watch in real-time
+Subscribe to the WebSocket event stream:
 ```javascript
 const ws = new WebSocket('ws://localhost:8000/ws/events');
 ws.onmessage = (e) => console.log(JSON.parse(e.data));
