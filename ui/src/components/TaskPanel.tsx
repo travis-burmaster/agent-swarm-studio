@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useLayoutEffect } from "react";
 import { Agent, Task } from "../lib/api";
 
 const expandedSet = new Set<string>();
@@ -25,6 +25,24 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove }: TaskPan
   const [assignTo, setAssignTo] = useState("orchestrator");
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => expandedSet);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef(0);
+
+  // Save scroll position before DOM updates
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el) {
+      scrollTopRef.current = el.scrollTop;
+    }
+  });
+
+  // Restore scroll position after tasks change
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el) {
+      el.scrollTop = scrollTopRef.current;
+    }
+  }, [tasks]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -87,7 +105,7 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove }: TaskPan
       </form>
 
       {/* Task list */}
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+      <div ref={listRef} className="flex-1 overflow-y-auto space-y-2 min-h-0">
         {tasks.length === 0 && (
           <div className="text-muted text-xs text-center py-6">No tasks yet.</div>
         )}
