@@ -293,19 +293,20 @@ async def main() -> None:
             task_id = task.get("task_id", "unknown")
             description = task.get("description", "")
 
-            # ── Atomic task checkout (Paperclip pattern) ──────────────────────
-            # Acquire an exclusive lock before processing. Prevents duplicate
-            # execution if the same task_id is retried or re-queued on error,
-            # and is safe for future horizontal scaling (multiple containers
-            # per agent type). Lock expires after 10 minutes as a safety net.
+            # ── Atomic task checkout (Paperclip pattern) ───────────────────
+            # Acquire a Redis lock before processing to prevent duplicate
+            # execution if the same task_id was queued more than once
+            # (e.g. retry logic, duplicate submission). Lock TTL matches the
+            # task timeout in scheduler.yml (600s).
             lock_key = f"task:lock:{task_id}"
             acquired = await r.set(lock_key, AGENT_ID, nx=True, ex=600)
             if not acquired:
                 logger.warning(
-                    "Task %s already locked by another worker — skipping", task_id
+                    "Task %s already being processed by another worker — skipping",
+                    task_id,
                 )
                 continue
-            # ─────────────────────────────────────────────────────────────────
+            # ───────────────────────────────────────────────────────────────
 
             # Extract company URL context
             task_context = task.get("context", {})
@@ -398,6 +399,10 @@ async def main() -> None:
                     },
                 )
                 await update_status(r, "idle", last_output=f"ERROR: {error_msg[:100]}")
+
+            finally:
+                # Release the atomic checkout lock regardless of outcome
+                await r.delete(lock_key)
 
         except asyncio.CancelledError:
             break
