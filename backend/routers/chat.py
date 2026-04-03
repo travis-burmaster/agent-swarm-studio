@@ -25,6 +25,12 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
     config = request.app.state.agents_config
     agents = config.get("agents", [])
     agent_cfg = next((a for a in agents if a["id"] == agent_id), None)
+    if not agent_cfg and agent_id == "orchestrator":
+        agent_cfg = {
+            "id": "orchestrator",
+            "name": "Orchestrator",
+            "role": "strategic synthesizer across all agents",
+        }
     if not agent_cfg:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
 

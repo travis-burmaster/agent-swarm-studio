@@ -38,6 +38,11 @@ class AnalyzeRequest(BaseModel):
     company_url: str
 
 
+class QuestionRequest(BaseModel):
+    question: str
+    company_url: str | None = None
+
+
 @router.post("/analyze", response_model=Dict[str, Any], status_code=201)
 async def start_analysis(body: AnalyzeRequest, request: Request):
     """
@@ -116,6 +121,93 @@ async def start_analysis(body: AnalyzeRequest, request: Request):
     return {
         "workflow_id": workflow_id,
         "company_url": body.company_url,
+        "status": "running",
+        "tasks": task_ids,
+    }
+
+
+@router.post("/question", response_model=Dict[str, Any], status_code=201)
+async def ask_all_agents(body: QuestionRequest, request: Request):
+    """
+    Dispatch a free-form question to all agents.
+    Each agent answers from its own specialist perspective.
+    Results are synthesized by the orchestrator when all complete.
+    """
+    db = request.app.state.db
+    redis = request.app.state.redis
+    config = request.app.state.agents_config
+    agents = config.get("agents", [])
+    agent_ids = [a["id"] for a in agents]
+
+    workflow_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    task_ids = {}
+
+    url_context = ""
+    if body.company_url:
+        url_context = f"\n\nCompany context: {body.company_url}"
+
+    for agent_id in agent_ids:
+        task_id = str(uuid.uuid4())
+        full_description = (
+            f"Answer the following question from your specialist perspective "
+            f"as the {agent_id} agent:\n\n{body.question}{url_context}"
+        )
+
+        await db.execute(
+            """
+            INSERT INTO tasks (id, description, assign_to, status, created_at, updated_at)
+            VALUES ($1, $2, $3, 'pending', $4, $4)
+            """,
+            task_id, full_description, agent_id, now,
+        )
+
+        payload = json.dumps({
+            "task_id": task_id,
+            "description": full_description,
+            "assign_to": agent_id,
+            "context": {
+                "question": body.question,
+                "company_url": body.company_url or "",
+            },
+        })
+        await redis.lpush(f"tasks:{agent_id}", payload)
+
+        await redis.publish("agent:events", json.dumps({
+            "type": "task_created",
+            "task_id": task_id,
+            "description": full_description[:80],
+            "assigned_to": agent_id,
+            "timestamp": now.isoformat(),
+        }))
+
+        task_ids[agent_id] = task_id
+
+    # Persist workflow record
+    company_label = body.company_url or "general"
+    await db.execute(
+        """
+        INSERT INTO workflows (id, company_url, task_ids, status, created_at, updated_at)
+        VALUES ($1, $2, $3, 'running', $4, $4)
+        """,
+        workflow_id, company_label, json.dumps(task_ids), now,
+    )
+
+    await redis.publish("agent:events", json.dumps({
+        "type": "workflow_started",
+        "workflow_id": workflow_id,
+        "company_url": company_label,
+        "agents": list(task_ids.keys()),
+        "timestamp": now.isoformat(),
+    }))
+
+    asyncio.create_task(
+        _watch_workflow(workflow_id, task_ids, company_label, db, redis)
+    )
+
+    return {
+        "workflow_id": workflow_id,
+        "question": body.question,
         "status": "running",
         "tasks": task_ids,
     }

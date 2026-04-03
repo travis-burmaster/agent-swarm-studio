@@ -33,7 +33,15 @@ export default function AgentCard({ agent, onClick }: AgentCardProps) {
         <span className="font-mono text-xs text-muted uppercase tracking-widest">
           {agent.id}
         </span>
-        <StatusDot status={agent.status} />
+        <div className="flex items-center gap-2">
+          <span
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="text-[10px] text-indigo-400 hover:text-indigo-300 cursor-pointer transition-colors"
+          >
+            Chat
+          </span>
+          <StatusDot status={agent.status} />
+        </div>
       </div>
 
       {/* Role */}
