@@ -1,86 +1,208 @@
-# Agent Swarm Studio
+# Agent Swarm Studio — Business Intelligence Swarm
 
-Agent Swarm Studio is a visual platform for orchestrating collaborative AI agent swarms across Docker containers — giving teams a real-time dashboard to define agent roles, dispatch tasks, monitor progress, and chat directly with individual agents, all backed by a FastAPI event bus, Redis queues, and Postgres persistent memory.
+A collaborative swarm of four AI specialists that analyze any company URL from
+every angle simultaneously. Point the swarm at a URL and get a comprehensive
+intelligence brief covering legal, market, SEO/marketing, and revenue dimensions.
+
+---
+
+## The Agents
+
+| Agent | Role | What It Does |
+|-------|------|-------------|
+| **Lawyer** | Corporate Intelligence | Legal scan, ToS/privacy analysis, compliance gaps, litigation signals |
+| **Data Researcher** | Market Intelligence | Company profile, competitive landscape, tech stack, funding signals |
+| **Marketing** | SEO & Brand | On-page SEO audit, content strategy, brand positioning, competitor keyword gaps |
+| **Sales** | Revenue Intelligence | Pricing model, ICP profiling, GTM motion, partnership opportunities |
+
+All four agents share a common identity (`SOUL.md`), operating rules (`RULES.md`),
+team protocol (`AGENTS.md`), and execution instructions (`INSTRUCTIONS.md`).
+
+---
+
+## Quick Start
+
+### 1. Clone and configure
+```bash
+git clone https://github.com/travis-burmaster/agent-swarm-studio.git
+cd agent-swarm-studio
+cp .env.example .env
+# Edit .env: add ANTHROPIC_API_KEY and set TARGET_COMPANY_URL
+```
+
+### 2. Start the swarm
+```bash
+docker compose up --build
+```
+
+### 3. Run a company analysis
+```bash
+# Via API
+curl -X POST http://localhost:8000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Full business intelligence analysis",
+    "workflow": "company_analysis",
+    "context": {
+      "company_url": "https://stripe.com"
+    }
+  }'
+
+# Or set TARGET_COMPANY_URL in .env and trigger all agents:
+curl -X POST http://localhost:8000/tasks \
+  -d '{"description": "Analyze the target company URL", "assign_to": "data-researcher"}'
+```
+
+### 4. Watch in real-time
+Open the UI at **http://localhost:3000** or subscribe to the WebSocket:
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws/events');
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
+```
+
+---
+
+## Configure agent-search-tool
+
+Each agent container has `agent-search-tool` installed. Configure it once:
+
+```bash
+# Configure web + GitHub search (minimum recommended)
+docker exec agent-data-researcher agent-search configure
+
+# Check health across all agents
+docker exec agent-lawyer agent-search doctor
+docker exec agent-data-researcher agent-search doctor
+docker exec agent-marketing agent-search doctor
+docker exec agent-sales agent-search doctor
+```
+
+For richer results, configure:
+- `EXA_API_KEY` — semantic web search ([exa.ai](https://exa.ai))
+- `GITHUB_TOKEN` — deeper GitHub org/repo research
+
+---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Browser UI (React)                       │
-│   AgentBoard │ TaskPanel │ ChatDrawer │ LogStream (WebSocket)    │
-└────────────────────────────┬────────────────────────────────────┘
-                             │  HTTP REST + WebSocket
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Backend (FastAPI / Python)                      │
-│  /agents  │  /tasks  │  /chat  │  /ws/events  │  /health        │
-└──────┬──────────────────────────────────────┬───────────────────┘
-       │                                      │
-       ▼                                      ▼
-┌──────────────┐                    ┌──────────────────┐
-│    Redis 7   │                    │  PostgreSQL 16    │
-│  Task queues │                    │  memory / tasks   │
-│  Pub/Sub     │                    │  chat_messages    │
-│  Agent state │                    └──────────────────┘
-└──────┬───────┘
-       │  brpop / publish
-       ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Agent Containers                            │
-│  ┌────────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
-│  │  orchestrator  │  │  coder   │  │ reviewer │  │  tester  │ │
-│  │  (Architect)   │  │ (Senior  │  │  (Code   │  │   (QA    │ │
-│  │                │  │  Eng.)   │  │ Review)  │  │  Eng.)   │ │
-│  └────────────────┘  └──────────┘  └──────────┘  └──────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+                    ┌─────────────────────┐
+                    │   React UI (:3000)   │
+                    └────────┬────────────┘
+                             │ HTTP + WebSocket
+                    ┌────────▼────────────┐
+                    │  FastAPI Backend     │
+                    │     (:8000)          │
+                    └────────┬────────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+         ┌────▼────┐   ┌─────▼─────┐  ┌───▼────┐
+         │  Redis   │   │ PostgreSQL │  │  YAML  │
+         │ (queue + │   │ (memory + │  │ config │
+         │ pub/sub) │   │  tasks)   │  └────────┘
+         └────┬─────┘   └───────────┘
+              │
+    ┌─────────┼──────────┬──────────────┐
+    │         │          │              │
+┌───▼──┐ ┌───▼──────┐ ┌─▼────────┐ ┌──▼───┐
+│Lawyer│ │Researcher│ │Marketing │ │Sales │
+│agent │ │  agent   │ │  agent   │ │agent │
+└──────┘ └──────────┘ └──────────┘ └──────┘
+    │         │          │              │
+    └─────────┴──────────┴──────────────┘
+              │
+     agent-search-tool
+    (web, github, reddit,
+     twitter, youtube, exa)
 ```
 
-## Quick Start
+---
 
+## File Structure
+
+```
+agent-swarm-studio/
+├── agent.yaml              # gitagent-compatible swarm config
+├── SOUL.md                 # Shared identity and values
+├── RULES.md                # Operating rules for all agents
+├── AGENTS.md               # Agent roster and collaboration protocol
+├── INSTRUCTIONS.md         # Task execution handbook
+├── scheduler.yml           # Cron and event-based scheduling
+├── docker-compose.yml      # Full stack definition
+├── .env.example            # Environment variable template
+│
+├── agents/
+│   ├── base/
+│   │   ├── agent_runner.py # Core agent loop (loads SOUL/RULES/AGENTS/INSTRUCTIONS)
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── lawyer/
+│   │   └── prompt.md       # Lawyer specialist prompt
+│   ├── data-researcher/
+│   │   └── prompt.md       # Researcher specialist prompt
+│   ├── marketing/
+│   │   └── prompt.md       # Marketing/SEO specialist prompt
+│   └── sales/
+│       └── prompt.md       # Revenue/Sales specialist prompt
+│
+├── skills/
+│   ├── lawyer/
+│   │   ├── contract-review.md
+│   │   ├── compliance-check.md
+│   │   └── risk-analysis.md
+│   ├── data-researcher/
+│   │   ├── market-analysis.md
+│   │   ├── competitive-intel.md
+│   │   └── financial-research.md
+│   ├── marketing/
+│   │   ├── seo-audit.md
+│   │   ├── content-strategy.md
+│   │   └── brand-positioning.md
+│   └── sales/
+│       ├── pipeline-analysis.md
+│       ├── icp-profiling.md
+│       └── revenue-modeling.md
+│
+├── backend/                # FastAPI backend
+└── ui/                     # React/Vite frontend
+```
+
+---
+
+## gitagent Compatibility
+
+This repo follows the [gitagent](https://registry.gitagent.sh) agent definition
+format. The `agent.yaml` file at the root defines all agents, their models,
+skills, and workflows in a registry-compatible schema.
+
+To publish to the gitagent registry:
 ```bash
-# 1. Clone the repo
-git clone https://github.com/your-org/agent-swarm-studio.git
-cd agent-swarm-studio
-
-# 2. Configure environment
-cp .env.example .env
-# Edit .env — add your ANTHROPIC_API_KEY and OPENAI_API_KEY
-
-# 3. Launch the full stack
-docker compose up --build
-
-# UI  → http://localhost:3000
-# API → http://localhost:8000/docs
+gitagent publish --config agent.yaml
 ```
 
-## agents.yaml Field Reference
+---
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | ✅ | Unique agent identifier (used as Redis queue name and Docker service name) |
-| `role` | string | ✅ | Human-readable role title shown in the UI |
-| `goal` | string | ✅ | One-sentence mission statement injected into system prompt |
-| `model` | string | ✅ | Model identifier (`anthropic/claude-*`, `openai/gpt-*`, etc.) |
-| `memory` | boolean | ❌ | Enable persistent memory via Postgres (default: false) |
-| `tools` | list[string] | ❌ | Tool names the agent may invoke (informational — enforced by runner) |
-| `color` | string | ❌ | Hex color for UI card accent (e.g. `"#6366f1"`) |
-| `memory.short_term` | string | ❌ | Redis URL for ephemeral state |
-| `memory.long_term` | string | ❌ | Postgres DSN for persistent memory |
-| `memory.shared_workspace` | string | ❌ | Filesystem path shared across all agent containers |
-| `tasks.process` | string | ❌ | Task routing strategy: `hierarchical` or `parallel` |
-| `tasks.max_concurrent` | int | ❌ | Maximum tasks running simultaneously across swarm |
-| `tasks.timeout_per_agent` | int | ❌ | Seconds before a task is considered timed out |
+## Extending the Swarm
 
-## Roadmap
+### Add a new agent
+1. Create `agents/{name}/prompt.md` with the specialist prompt
+2. Create `skills/{name}/` directory with skill files
+3. Add the agent definition to `agent.yaml`
+4. Add the service to `docker-compose.yml` following the existing pattern
 
-- **MCP tool integration** — plug any Model Context Protocol server into agent tool configs
-- **Agent spawning via UI** — define and launch new agents at runtime without restarting the stack
-- **Streaming git diffs** — live WebSocket feed of agent-generated code changes with syntax highlighting
-- **Multi-project support** — namespace workspaces per project with isolated queues and memory pools
-- **Agent-to-agent messaging** — direct message channels between agents for richer collaboration patterns
-- **Approval workflows** — human-in-the-loop gates before reviewer approvals propagate downstream
-- **Cost tracking** — per-agent token usage dashboard with budget alerts
+### Add a new workflow
+Define it in `scheduler.yml` under `workflows:` and reference it via:
+```bash
+curl -X POST http://localhost:8000/tasks \
+  -d '{"description": "...", "workflow": "your_workflow_name"}'
+```
 
-## License
+---
 
-MIT © 2025 Agent Swarm Studio Contributors
+## Credits
+
+- Built on [Agent Swarm Studio](https://github.com/travis-burmaster/agent-swarm-studio)
+- Search powered by [agent-search-tool](https://github.com/travis-burmaster/agent-search-tool)
+- Agent format inspired by [gitagent registry](https://registry.gitagent.sh)
+- LLM: [Claude](https://anthropic.com) (claude-sonnet-4-6)

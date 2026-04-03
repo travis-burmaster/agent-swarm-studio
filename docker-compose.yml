@@ -1,154 +1,213 @@
 version: "3.9"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Agent Swarm Studio — Business Intelligence Swarm
+# 4 Specialist Agents: Lawyer · Data Researcher · Marketing · Sales
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-agent-common: &agent-common
+  build:
+    context: .
+    dockerfile: agents/base/Dockerfile
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+  environment:
+    REDIS_URL: redis://redis:6379
+    DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+    AGENT_SEARCH_CONFIG: /app/agent-search-config
+  volumes:
+    - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
+    - ./agents/base/requirements.txt:/app/requirements.txt:ro
+    # Shared identity files — all agents mount the same docs
+    - ./SOUL.md:/app/shared/SOUL.md:ro
+    - ./RULES.md:/app/shared/RULES.md:ro
+    - ./AGENTS.md:/app/shared/AGENTS.md:ro
+    - ./INSTRUCTIONS.md:/app/shared/INSTRUCTIONS.md:ro
+    # Shared workspace for inter-agent file exchange
+    - workspace:/shared/workspace
+    # agent-search-tool config (if pre-configured)
+    - agent-search-config:/app/agent-search-config
+
 services:
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    volumes:
-      - redis_data:/data
 
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-agentuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentpass}
       POSTGRES_DB: ${POSTGRES_DB:-agents}
-    ports:
-      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentuser} -d ${POSTGRES_DB:-agents}"]
       interval: 5s
       timeout: 3s
       retries: 10
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+
+  # ── Backend API ─────────────────────────────────────────────────────────────
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://agentuser:agentpass@postgres:5432/agents}
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      AGENTS_CONFIG: /app/agent.yaml
+      TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
     volumes:
+      - ./backend:/app/backend:ro
+      - ./agent.yaml:/app/agent.yaml:ro
       - workspace:/shared/workspace
-      - ./agents.yaml:/app/agents.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ── Frontend UI ─────────────────────────────────────────────────────────────
+
   ui:
     build:
-      context: ./ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ui/Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       backend:
         condition: service_healthy
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
-      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8000}
+      VITE_API_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000
 
-  orchestrator:
-    build:
-      context: ./agents/base
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      AGENT_ID: orchestrator
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://agentuser:agentpass@postgres:5432/agents}
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    volumes:
-      - workspace:/shared/workspace
-      - ./agents/orchestrator/prompt.md:/app/prompt.md:ro
+  # ── Specialist Agents ───────────────────────────────────────────────────────
 
-  coder:
-    build:
-      context: ./agents/base
-      dockerfile: Dockerfile
-    restart: unless-stopped
+  lawyer:
+    <<: *agent-common
+    container_name: agent-lawyer
     environment:
-      AGENT_ID: coder
+      <<: *agent-common
+      AGENT_ID: lawyer
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://agentuser:agentpass@postgres:5432/agents}
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
     volumes:
+      - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
+      - ./agents/base/requirements.txt:/app/requirements.txt:ro
+      - ./agents/lawyer/prompt.md:/app/prompt.md:ro
+      - ./skills/lawyer:/app/skills:ro
+      - ./SOUL.md:/app/shared/SOUL.md:ro
+      - ./RULES.md:/app/shared/RULES.md:ro
+      - ./AGENTS.md:/app/shared/AGENTS.md:ro
+      - ./INSTRUCTIONS.md:/app/shared/INSTRUCTIONS.md:ro
       - workspace:/shared/workspace
-      - ./agents/coder/prompt.md:/app/prompt.md:ro
+      - agent-search-config:/app/agent-search-config
 
-  reviewer:
-    build:
-      context: ./agents/base
-      dockerfile: Dockerfile
-    restart: unless-stopped
+  data-researcher:
+    <<: *agent-common
+    container_name: agent-data-researcher
     environment:
-      AGENT_ID: reviewer
+      <<: *agent-common
+      AGENT_ID: data-researcher
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://agentuser:agentpass@postgres:5432/agents}
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
     volumes:
+      - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
+      - ./agents/base/requirements.txt:/app/requirements.txt:ro
+      - ./agents/data-researcher/prompt.md:/app/prompt.md:ro
+      - ./skills/data-researcher:/app/skills:ro
+      - ./SOUL.md:/app/shared/SOUL.md:ro
+      - ./RULES.md:/app/shared/RULES.md:ro
+      - ./AGENTS.md:/app/shared/AGENTS.md:ro
+      - ./INSTRUCTIONS.md:/app/shared/INSTRUCTIONS.md:ro
       - workspace:/shared/workspace
-      - ./agents/reviewer/prompt.md:/app/prompt.md:ro
+      - agent-search-config:/app/agent-search-config
 
-  tester:
-    build:
-      context: ./agents/base
-      dockerfile: Dockerfile
-    restart: unless-stopped
+  marketing:
+    <<: *agent-common
+    container_name: agent-marketing
     environment:
-      AGENT_ID: tester
+      <<: *agent-common
+      AGENT_ID: marketing
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://agentuser:agentpass@postgres:5432/agents}
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
     volumes:
+      - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
+      - ./agents/base/requirements.txt:/app/requirements.txt:ro
+      - ./agents/marketing/prompt.md:/app/prompt.md:ro
+      - ./skills/marketing:/app/skills:ro
+      - ./SOUL.md:/app/shared/SOUL.md:ro
+      - ./RULES.md:/app/shared/RULES.md:ro
+      - ./AGENTS.md:/app/shared/AGENTS.md:ro
+      - ./INSTRUCTIONS.md:/app/shared/INSTRUCTIONS.md:ro
       - workspace:/shared/workspace
-      - ./agents/tester/prompt.md:/app/prompt.md:ro
+      - agent-search-config:/app/agent-search-config
+
+  sales:
+    <<: *agent-common
+    container_name: agent-sales
+    environment:
+      <<: *agent-common
+      AGENT_ID: sales
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+    volumes:
+      - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
+      - ./agents/base/requirements.txt:/app/requirements.txt:ro
+      - ./agents/sales/prompt.md:/app/prompt.md:ro
+      - ./skills/sales:/app/skills:ro
+      - ./SOUL.md:/app/shared/SOUL.md:ro
+      - ./RULES.md:/app/shared/RULES.md:ro
+      - ./AGENTS.md:/app/shared/AGENTS.md:ro
+      - ./INSTRUCTIONS.md:/app/shared/INSTRUCTIONS.md:ro
+      - workspace:/shared/workspace
+      - agent-search-config:/app/agent-search-config
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
 
 volumes:
+  redis-data:
+  pg-data:
   workspace:
-  pgdata:
-  redis_data:
+  agent-search-config:
