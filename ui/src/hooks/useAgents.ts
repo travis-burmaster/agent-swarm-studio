@@ -14,9 +14,11 @@ export function useAgents() {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch + poll every 5s as fallback when WebSocket is disconnected
   useEffect(() => {
     refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
   }, [refresh]);
 
   // WebSocket for live agent_status events

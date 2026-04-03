@@ -13,9 +13,11 @@ export function useTasks() {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch + poll every 5s for async updates (synthesis, agent results)
   useEffect(() => {
     refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
   }, [refresh]);
 
   const submit = useCallback(

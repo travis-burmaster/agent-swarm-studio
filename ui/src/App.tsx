@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Agent, Task, startAnalysis, getConfig } from "./lib/api";
+import { Agent, Task, startAnalysis, askAllAgents, getConfig } from "./lib/api";
 import { useAgents } from "./hooks/useAgents";
 import { useTasks } from "./hooks/useTasks";
 import AgentBoard from "./components/AgentBoard";
@@ -13,7 +13,10 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [analyzeUrl, setAnalyzeUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
   const [showSynthesis, setShowSynthesis] = useState<Task | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Prepopulate URL from backend config
   useEffect(() => {
@@ -44,8 +47,23 @@ export default function App() {
     }
   };
 
+  const handleAskAll = async () => {
+    const q = question.trim();
+    if (!q || asking) return;
+    setAsking(true);
+    try {
+      await askAllAgents(q, analyzeUrl.trim() || undefined);
+      setQuestion("");
+      setTimeout(refreshTasks, 1000);
+    } catch (err) {
+      console.error("Question dispatch failed:", err);
+    } finally {
+      setAsking(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-surface flex flex-col">
+    <div className="h-screen bg-surface flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -70,15 +88,67 @@ export default function App() {
               {pendingCount} task{pendingCount !== 1 ? "s" : ""} pending
             </span>
           </div>
+          {latestSynthesis && (
+            <button
+              onClick={() => setShowSynthesis(showSynthesis ? null : latestSynthesis)}
+              className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1 rounded-md transition-colors"
+            >
+              {showSynthesis ? "Hide Summary" : "View Summary"}
+            </button>
+          )}
           <button
-            onClick={() => { refreshAgents(); refreshTasks(); }}
-            className="text-muted hover:text-white text-xs px-2 py-1 border border-border rounded-md transition-colors"
+            onClick={async () => {
+              setRefreshing(true);
+              await Promise.all([refreshAgents(), refreshTasks()]);
+              setRefreshing(false);
+            }}
+            disabled={refreshing}
+            className="text-muted hover:text-white text-xs px-2 py-1 border border-border rounded-md transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            ↻ Refresh
+            {refreshing ? (
+              <span className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
+                Refreshing...
+              </span>
+            ) : (
+              "↻ Refresh"
+            )}
           </button>
         </div>
       </header>
+
+      {/* Ask all agents bar */}
+      <div className="border-b border-border px-6 py-2.5 flex items-center gap-3 bg-card/50">
+        <label className="text-xs text-muted uppercase tracking-wide shrink-0">Ask Swarm</label>
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAskAll(); }}
+          placeholder="Ask all agents a question..."
+          className="flex-1 bg-black/40 border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-muted focus:outline-none focus:border-indigo-500 transition-colors"
+        />
+        <button
+          onClick={handleAskAll}
+          disabled={asking || !question.trim()}
+          className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+        >
+          {asking ? (
+            <>
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Dispatching...
+            </>
+          ) : (
+            "Ask All Agents"
+          )}
+        </button>
+        <span className="text-[10px] text-muted">
+          {analyzeUrl.trim()
+            ? `Context: ${analyzeUrl.trim().replace(/^https?:\/\//, "").slice(0, 30)}`
+            : "No URL context — set one below"}
+        </span>
+      </div>
 
       {/* Analyze bar */}
       <div className="border-b border-border px-6 py-2.5 flex items-center gap-3 bg-card/50">
@@ -105,16 +175,8 @@ export default function App() {
             "Analyze"
           )}
         </button>
-        {latestSynthesis && (
-          <button
-            onClick={() => setShowSynthesis(showSynthesis ? null : latestSynthesis)}
-            className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
-          >
-            {showSynthesis ? "Hide Summary" : "View Summary"}
-          </button>
-        )}
         <span className="text-[10px] text-muted">
-          Dispatches all 4 agents + orchestrator synthesis
+          Quick URL scan — dispatches all 4 agents
         </span>
       </div>
 
@@ -156,6 +218,19 @@ export default function App() {
             agents={agents}
             onSubmit={submit}
             onRemove={remove}
+            onChatOrchestrator={() =>
+              setSelectedAgent({
+                id: "orchestrator",
+                role: "strategic synthesizer",
+                goal: "Synthesize findings across all agents",
+                model: "claude-haiku-4-5",
+                color: "#10b981",
+                tools: [],
+                status: "idle",
+                current_task: null,
+                last_output: null,
+              })
+            }
           />
         </aside>
       </div>
@@ -163,6 +238,7 @@ export default function App() {
       {/* Chat drawer overlay */}
       {selectedAgent && (
         <ChatDrawer
+          key={selectedAgent.id}
           agent={selectedAgent}
           onClose={() => setSelectedAgent(null)}
         />

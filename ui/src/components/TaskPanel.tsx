@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from "react";
+import React, { useState } from "react";
 import { Agent, Task } from "../lib/api";
 
 const expandedSet = new Set<string>();
@@ -8,6 +8,7 @@ interface TaskPanelProps {
   agents: Agent[];
   onSubmit: (description: string, assignTo: string) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  onChatOrchestrator: () => void;
 }
 
 function statusBadge(status: Task["status"]) {
@@ -20,29 +21,11 @@ function statusBadge(status: Task["status"]) {
   return map[status] ?? "bg-gray-800 text-gray-400";
 }
 
-export default function TaskPanel({ tasks, agents, onSubmit, onRemove }: TaskPanelProps) {
+export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onChatOrchestrator }: TaskPanelProps) {
   const [description, setDescription] = useState("");
   const [assignTo, setAssignTo] = useState("orchestrator");
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => expandedSet);
-  const listRef = useRef<HTMLDivElement>(null);
-  const scrollTopRef = useRef(0);
-
-  // Save scroll position before DOM updates
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (el) {
-      scrollTopRef.current = el.scrollTop;
-    }
-  });
-
-  // Restore scroll position after tasks change
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (el) {
-      el.scrollTop = scrollTopRef.current;
-    }
-  }, [tasks]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -104,8 +87,16 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove }: TaskPan
         </div>
       </form>
 
+      {/* Chat with orchestrator */}
+      <button
+        onClick={onChatOrchestrator}
+        className="w-full bg-emerald-800/60 hover:bg-emerald-700/60 border border-emerald-700/50 text-emerald-300 text-sm font-medium px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+      >
+        Chat with Orchestrator
+      </button>
+
       {/* Task list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto space-y-2 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
         {tasks.length === 0 && (
           <div className="text-muted text-xs text-center py-6">No tasks yet.</div>
         )}

@@ -20,7 +20,7 @@ function formatEvent(ev: Record<string, unknown>): string {
     case 'task_error':
       return `[${ev.agent_id}] ✗ error: ${ev.error}`
     case 'chat_message':
-      return `[chat:${ev.agent_id}] ${String(ev.message).slice(0, 60)}`
+      return `[chat:${ev.agent_id}] ${String(ev.preview || ev.message).slice(0, 60)}`
     default:
       return JSON.stringify(ev).slice(0, 120)
   }

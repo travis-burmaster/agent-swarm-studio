@@ -69,6 +69,17 @@ export interface Workflow {
 export const startAnalysis = (companyUrl: string): Promise<Workflow> =>
   api.post<Workflow>("/workflow/analyze", { company_url: companyUrl }).then((r) => r.data);
 
+export const askAllAgents = (
+  question: string,
+  companyUrl?: string
+): Promise<Workflow> =>
+  api
+    .post<Workflow>("/workflow/question", {
+      question,
+      company_url: companyUrl || undefined,
+    })
+    .then((r) => r.data);
+
 export const getConfig = (): Promise<{ target_company_url: string }> =>
   api.get<{ target_company_url: string }>("/config").then((r) => r.data);
 
