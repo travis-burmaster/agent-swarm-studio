@@ -1,0 +1,39 @@
+agents:
+  - id: orchestrator
+    role: Solution Architect
+    goal: Break tasks into subtasks and delegate to specialists
+    model: anthropic/claude-sonnet-4-6
+    memory: true
+    tools: [task_assign, file_read, web_search]
+    color: "#6366f1"
+  - id: coder
+    role: Senior Engineer
+    goal: Implement features assigned by orchestrator
+    model: openai-codex/gpt-5.2
+    memory: true
+    tools: [file_read, file_write, bash, git_commit]
+    color: "#10b981"
+  - id: reviewer
+    role: Code Reviewer
+    goal: Review code output, flag issues, approve or reject
+    model: anthropic/claude-sonnet-4-6
+    memory: true
+    tools: [file_read, git_diff, comment]
+    color: "#f59e0b"
+  - id: tester
+    role: QA Engineer
+    goal: Write and run tests, report failures back to coder
+    model: anthropic/claude-haiku-4-5
+    memory: true
+    tools: [bash, file_read, file_write]
+    color: "#ef4444"
+
+memory:
+  short_term: redis://redis:6379
+  long_term: postgresql://agentuser:agentpass@postgres:5432/agents
+  shared_workspace: /shared/workspace
+
+tasks:
+  process: hierarchical
+  max_concurrent: 4
+  timeout_per_agent: 300
