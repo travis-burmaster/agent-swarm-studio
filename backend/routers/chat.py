@@ -3,6 +3,7 @@
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict
 
 import anthropic
@@ -104,11 +105,25 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
 
     agent_name = agent_cfg.get("name", agent_cfg["id"])
     agent_role = agent_cfg.get("role", "assistant")
-    system_prompt = (
-        f"You are {agent_name} ({agent_role}). "
-        "Be concise and focus on your speciality."
-        + task_context
-    )
+
+    # Load agent's identity files if available (for replaced agents too)
+    project_root = Path(os.getenv("PROJECT_ROOT", "/app"))
+
+    prompt_parts = []
+    agents_dir = project_root / "agents" / agent_id
+    for filename, label in [("SOUL.md", "Identity"), ("RULES.md", "Rules"), ("prompt.md", "Specialist Prompt")]:
+        filepath = agents_dir / filename
+        if filepath.exists():
+            prompt_parts.append(f"# {label}\n\n{filepath.read_text(encoding='utf-8')}")
+
+    if prompt_parts:
+        system_prompt = "\n\n---\n\n".join(prompt_parts) + task_context
+    else:
+        system_prompt = (
+            f"You are {agent_name} ({agent_role}). "
+            "Be concise and focus on your speciality."
+            + task_context
+        )
     response = client.messages.create(
         model="claude-haiku-4-5",
         max_tokens=1024,
