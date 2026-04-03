@@ -36,7 +36,7 @@ export default function AgentCard({ agent, onClick }: AgentCardProps) {
         <div className="flex items-center gap-2">
           <span
             onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className="text-[10px] text-indigo-400 hover:text-indigo-300 cursor-pointer transition-colors"
+            className="text-[10px] text-indigo-400 hover:text-indigo-300 cursor-pointer transition-colors border border-indigo-500/50 hover:border-indigo-400 rounded px-1.5 py-0.5"
           >
             Chat
           </span>

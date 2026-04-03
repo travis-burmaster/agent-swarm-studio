@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useChat } from '../hooks/useChat'
 
 interface Agent {
@@ -12,14 +12,44 @@ interface Props {
   onClose: () => void
 }
 
+const MIN_WIDTH = 320
+const MAX_WIDTH = 800
+const DEFAULT_WIDTH = 384
+
 export function ChatDrawer({ agent, onClose }: Props) {
   const [input, setInput] = useState('')
   const { messages, send, loading } = useChat(agent?.id ?? '')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  const dragging = useRef(false)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragging.current = true
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current) return
+      const newWidth = window.innerWidth - e.clientX
+      setWidth(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth)))
+    }
+
+    const onMouseUp = () => {
+      dragging.current = false
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [])
 
   if (!agent) return null
 
@@ -32,7 +62,12 @@ export function ChatDrawer({ agent, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border flex flex-col z-50 shadow-2xl">
+    <div className="fixed inset-y-0 right-0 bg-card border-l border-border flex flex-col z-50 shadow-2xl" style={{ width }}>
+      {/* Resize handle */}
+      <div
+        onMouseDown={onMouseDown}
+        className="absolute inset-y-0 left-0 w-1.5 cursor-col-resize hover:bg-indigo-500/40 transition-colors z-10"
+      />
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
