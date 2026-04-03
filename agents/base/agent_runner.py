@@ -5,11 +5,17 @@ Agent Swarm Studio v2.0.0
 Loads shared identity files (SOUL.md, RULES.md, AGENTS.md, INSTRUCTIONS.md),
 initializes agent-search-tool, and processes tasks from Redis queue.
 
+LLM access (pick one):
+  Option A: ANTHROPIC_API_KEY       — direct Anthropic API access
+  Option B: ANTHROPIC_OAUTH_KEY     — routes through Claude OAuth Proxy (CLAUDE_PROXY_URL)
+
 Environment variables:
   AGENT_ID              — unique agent identifier (lawyer, data-researcher, marketing, sales)
   REDIS_URL             — Redis connection string
   DATABASE_URL          — Postgres DSN
-  ANTHROPIC_API_KEY     — Anthropic API key
+  ANTHROPIC_API_KEY     — Anthropic API key (direct access)
+  ANTHROPIC_OAUTH_KEY   — OAuth token (uses proxy)
+  CLAUDE_PROXY_URL      — URL of the Claude OAuth Proxy service
   TARGET_COMPANY_URL    — shared company URL context for all agents (set per workflow)
   AGENT_SEARCH_CONFIG   — optional path to agent-search config dir
 """
@@ -255,7 +261,25 @@ async def main() -> None:
     await update_status(r, "idle")
     logger.info("Agent %s ready — listening on queue '%s'", AGENT_ID, TASK_QUEUE_KEY)
 
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    # Initialize LLM client — proxy mode (OAuth) or direct API key
+    oauth_key = os.getenv("ANTHROPIC_OAUTH_KEY", "").strip()
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    proxy_url = os.getenv("CLAUDE_PROXY_URL", "http://claude-proxy:8319")
+
+    if oauth_key:
+        # Route through Claude OAuth Proxy — proxy handles auth headers
+        logger.info("Using Claude OAuth Proxy at %s", proxy_url)
+        client = anthropic.Anthropic(
+            base_url=proxy_url,
+            api_key="oauth-proxy",  # placeholder — proxy injects real auth
+        )
+    elif api_key:
+        logger.info("Using direct Anthropic API key")
+        client = anthropic.Anthropic(api_key=api_key)
+    else:
+        raise RuntimeError(
+            "No LLM credentials configured. Set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_KEY in .env"
+        )
 
     # ── Event loop ─────────────────────────────────────────────────────────────
     while True:

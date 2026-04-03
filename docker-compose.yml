@@ -7,8 +7,8 @@ version: "3.9"
 
 x-agent-common: &agent-common
   build:
-    context: .
-    dockerfile: agents/base/Dockerfile
+    context: ./agents/base
+    dockerfile: Dockerfile
   restart: unless-stopped
   depends_on:
     redis:
@@ -18,7 +18,9 @@ x-agent-common: &agent-common
   environment:
     REDIS_URL: redis://redis:6379
     DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
-    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+    CLAUDE_PROXY_URL: http://claude-proxy:8319
     TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
     AGENT_SEARCH_CONFIG: /app/agent-search-config
   volumes:
@@ -72,8 +74,8 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -85,11 +87,12 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+      CLAUDE_PROXY_URL: http://claude-proxy:8319
       AGENTS_CONFIG: /app/agent.yaml
       TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
     volumes:
-      - ./backend:/app/backend:ro
       - ./agent.yaml:/app/agent.yaml:ro
       - workspace:/shared/workspace
     healthcheck:
@@ -98,12 +101,30 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Claude OAuth Proxy (optional — used when ANTHROPIC_OAUTH_KEY is set) ────
+
+  claude-proxy:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8319:8319"
+    environment:
+      ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+      PROXY_PORT: "8319"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8319/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Frontend UI ─────────────────────────────────────────────────────────────
 
   ui:
     build:
-      context: .
-      dockerfile: ui/Dockerfile
+      context: ./ui
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "3000:80"
@@ -120,12 +141,14 @@ services:
     <<: *agent-common
     container_name: agent-lawyer
     environment:
-      <<: *agent-common
       AGENT_ID: lawyer
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+      CLAUDE_PROXY_URL: http://claude-proxy:8319
       TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+      AGENT_SEARCH_CONFIG: /app/agent-search-config
     volumes:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
@@ -142,12 +165,14 @@ services:
     <<: *agent-common
     container_name: agent-data-researcher
     environment:
-      <<: *agent-common
       AGENT_ID: data-researcher
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+      CLAUDE_PROXY_URL: http://claude-proxy:8319
       TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+      AGENT_SEARCH_CONFIG: /app/agent-search-config
     volumes:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
@@ -164,12 +189,14 @@ services:
     <<: *agent-common
     container_name: agent-marketing
     environment:
-      <<: *agent-common
       AGENT_ID: marketing
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+      CLAUDE_PROXY_URL: http://claude-proxy:8319
       TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+      AGENT_SEARCH_CONFIG: /app/agent-search-config
     volumes:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
@@ -186,12 +213,14 @@ services:
     <<: *agent-common
     container_name: agent-sales
     environment:
-      <<: *agent-common
       AGENT_ID: sales
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://${POSTGRES_USER:-agentuser}:${POSTGRES_PASSWORD:-agentpass}@postgres:5432/${POSTGRES_DB:-agents}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_OAUTH_KEY: ${ANTHROPIC_OAUTH_KEY:-}
+      CLAUDE_PROXY_URL: http://claude-proxy:8319
       TARGET_COMPANY_URL: ${TARGET_COMPANY_URL:-}
+      AGENT_SEARCH_CONFIG: /app/agent-search-config
     volumes:
       - ./agents/base/agent_runner.py:/app/agent_runner.py:ro
       - ./agents/base/requirements.txt:/app/requirements.txt:ro
