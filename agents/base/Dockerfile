@@ -4,7 +4,8 @@ WORKDIR /app
 
 # Install agent runtime dependencies
 RUN pip install --no-cache-dir \
-    anthropic==0.34.2 \
+    "anthropic>=0.49.0" \
+    "httpx>=0.27.0,<0.29.0" \
     openai==1.45.0 \
     redis==5.0.8 \
     asyncpg==0.29.0 \
