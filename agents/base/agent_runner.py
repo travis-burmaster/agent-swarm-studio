@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -126,6 +127,165 @@ def init_search_tool():
     except Exception as exc:
         logger.warning("agent-search-tool init failed: %s", exc)
         return None
+
+
+# ── Claude Tool Definitions ──────────────────────────────────────────────────
+
+AGENT_TOOLS = [
+    {
+        "name": "web_fetch",
+        "description": (
+            "Fetch and read the content of any web page. Uses Jina Reader to extract "
+            "clean text from URLs. Use this to read company websites, articles, legal pages, "
+            "privacy policies, terms of service, LinkedIn profiles, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The full URL to fetch (e.g. https://example.com/about)",
+                },
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "web_search",
+        "description": (
+            "Search the web for information. Returns search results with titles, URLs, "
+            "and snippets. Use this to find company information, news, legal filings, "
+            "market data, competitor analysis, reviews, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query (e.g. '\"Acme Corp\" revenue funding')",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "save_memory",
+        "description": (
+            "Save a note to your persistent memory. Use this to remember important findings, "
+            "key facts, insights, or anything you want to recall in future tasks. "
+            "Memories persist across tasks and conversations."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The content to remember (key findings, facts, insights, analysis notes)",
+                },
+            },
+            "required": ["content"],
+        },
+    },
+    {
+        "name": "recall_memory",
+        "description": (
+            "Search your persistent memory for previously saved notes and findings. "
+            "Use this to recall what you've learned in prior tasks — key facts, insights, "
+            "company profiles, analysis results, etc. Returns your most recent memories "
+            "matching the query, or all recent memories if no query is provided."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Optional search term to filter memories (e.g. company name, topic). Leave empty to get all recent memories.",
+                    "default": "",
+                },
+            },
+        },
+    },
+]
+
+
+async def execute_tool(tool_name: str, tool_input: dict, pool: asyncpg.Pool = None) -> str:
+    """Execute a tool and return the result as text."""
+    try:
+        if tool_name == "web_fetch":
+            url = tool_input.get("url", "")
+            if not url:
+                return "Error: No URL provided"
+            result = subprocess.run(
+                ["curl", "-sL", "--max-time", "30", f"https://r.jina.ai/{url}"],
+                capture_output=True, text=True, timeout=35,
+            )
+            output = result.stdout.strip()
+            if not output:
+                return f"Error: No content returned from {url}"
+            return output[:15000]
+
+        elif tool_name == "web_search":
+            query = tool_input.get("query", "")
+            if not query:
+                return "Error: No query provided"
+            result = subprocess.run(
+                ["curl", "-sL", "--max-time", "30", f"https://s.jina.ai/{query}"],
+                capture_output=True, text=True, timeout=35,
+            )
+            output = result.stdout.strip()
+            if not output:
+                return f"Error: No results for query: {query}"
+            return output[:15000]
+
+        elif tool_name == "save_memory":
+            content = tool_input.get("content", "")
+            if not content:
+                return "Error: No content provided"
+            if pool:
+                await pool.execute(
+                    "INSERT INTO memory (agent_id, role, content, created_at) VALUES ($1, $2, $3, $4)",
+                    AGENT_ID, "memory", content, datetime.now(timezone.utc),
+                )
+                logger.info("Agent %s saved memory (%d chars)", AGENT_ID, len(content))
+                return f"Memory saved successfully ({len(content)} chars)"
+            return "Error: Database not available"
+
+        elif tool_name == "recall_memory":
+            query = tool_input.get("query", "")
+            if pool:
+                if query:
+                    rows = await pool.fetch(
+                        """
+                        SELECT content, created_at FROM memory
+                        WHERE agent_id = $1 AND content ILIKE $2
+                        ORDER BY created_at DESC LIMIT 20
+                        """,
+                        AGENT_ID, f"%{query}%",
+                    )
+                else:
+                    rows = await pool.fetch(
+                        """
+                        SELECT content, created_at FROM memory
+                        WHERE agent_id = $1
+                        ORDER BY created_at DESC LIMIT 20
+                        """,
+                        AGENT_ID,
+                    )
+                if not rows:
+                    return "No memories found." + (f" (searched for: {query})" if query else "")
+                parts = []
+                for row in reversed(rows):
+                    ts = row["created_at"].strftime("%Y-%m-%d %H:%M UTC") if row["created_at"] else ""
+                    parts.append(f"[{ts}] {row['content']}")
+                return f"Found {len(rows)} memories:\n\n" + "\n\n---\n\n".join(parts)
+            return "Error: Database not available"
+
+        else:
+            return f"Error: Unknown tool '{tool_name}'"
+    except subprocess.TimeoutExpired:
+        return f"Error: Tool '{tool_name}' timed out after 30 seconds"
+    except Exception as exc:
+        return f"Error executing tool '{tool_name}': {exc}"
 
 
 # ── Redis Helpers ─────────────────────────────────────────────────────────────
@@ -294,11 +454,18 @@ async def main() -> None:
     reach = init_search_tool()
     search_available = reach is not None
 
-    # Add search tool status to system prompt
-    if search_available:
-        system_prompt += "\n\n## Search Tool Status\nagent-search-tool is AVAILABLE. Use AgentReach for all web research."
-    else:
-        system_prompt += "\n\n## Search Tool Status\nagent-search-tool is NOT available. Describe what you would search for and note the limitation."
+    # Add tool instructions to system prompt
+    system_prompt += (
+        "\n\n## Available Tools\n"
+        "You have access to these tools:\n"
+        "- `web_fetch` — read any URL (company sites, legal pages, articles, etc.)\n"
+        "- `web_search` — search the web for information\n"
+        "- `save_memory` — save important findings to your persistent memory for future tasks\n"
+        "- `recall_memory` — search your memory for previously saved findings and insights\n\n"
+        "ALWAYS use web_fetch/web_search to gather real data. Do NOT fabricate information.\n"
+        "Use recall_memory at the START of a task to check what you already know.\n"
+        "Use save_memory to store key findings, insights, and facts you want to remember."
+    )
 
     # Connect to Redis
     r = aioredis.from_url(REDIS_URL, decode_responses=True)
@@ -400,18 +567,76 @@ async def main() -> None:
                 if prior_context:
                     user_message += prior_context
 
-                # If search tool is available, include it in context
-                if search_available and company_url:
-                    user_message += f"\n\n[Search tool ready. Use AgentReach().fetch('{company_url}') to start.]"
+                # Call LLM with tools and handle tool-use loop
+                messages = [{"role": "user", "content": user_message}]
 
-                # Call LLM with full context
-                response = client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=4096,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_message}],
-                )
-                output = response.content[0].text
+                # Tool-use agentic loop — up to 8 rounds of tool calls
+                MAX_TOOL_ROUNDS = 8
+                for _turn in range(MAX_TOOL_ROUNDS):
+                    response = client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=8192,
+                        system=system_prompt,
+                        messages=messages,
+                        tools=AGENT_TOOLS,
+                    )
+
+                    # If no tool use, we're done
+                    if response.stop_reason != "tool_use":
+                        break
+
+                    # Process tool calls
+                    assistant_content = response.content
+                    messages.append({"role": "assistant", "content": assistant_content})
+
+                    tool_results = []
+                    for block in assistant_content:
+                        if block.type == "tool_use":
+                            logger.info(
+                                "Task %s — tool call: %s(%s)",
+                                task_id, block.name,
+                                json.dumps(block.input)[:120],
+                            )
+                            result_text = await execute_tool(block.name, block.input, pool)
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result_text,
+                            })
+                    messages.append({"role": "user", "content": tool_results})
+
+                # If the loop ended while still doing tool_use, force a final
+                # text response by calling without tools
+                if response.stop_reason == "tool_use":
+                    logger.info("Task %s — tool loop exhausted, forcing final summary", task_id)
+                    # Add the last tool-use response and results
+                    assistant_content = response.content
+                    messages.append({"role": "assistant", "content": assistant_content})
+                    tool_results = []
+                    for block in assistant_content:
+                        if block.type == "tool_use":
+                            result_text = await execute_tool(block.name, block.input, pool)
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": result_text,
+                            })
+                    messages.append({"role": "user", "content": tool_results + [{
+                        "type": "text",
+                        "text": "You have used all available tool calls. Now write your COMPLETE analysis report based on everything you have gathered. Do NOT call any more tools.",
+                    }]})
+                    response = client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=8192,
+                        system=system_prompt,
+                        messages=messages,
+                    )
+
+                # Extract final text output
+                output = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        output += block.text
                 logger.info("Task %s completed (%d chars)", task_id, len(output))
 
                 # Cache output for other agents

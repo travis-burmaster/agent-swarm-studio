@@ -1,7 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Agent, Task } from "../lib/api";
-
-const expandedSet = new Set<string>();
 
 interface TaskPanelProps {
   tasks: Task[];
@@ -27,7 +25,16 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, 
   const [assignTo, setAssignTo] = useState("orchestrator");
   const [submitting, setSubmitting] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(() => expandedSet);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // Auto-expand: all completed tasks with results are expanded by default.
+  // The set tracks which tasks the user has manually COLLAPSED.
+  const completedWithResults = useMemo(
+    () => new Set(tasks.filter((t) => t.result).map((t) => t.id)),
+    [tasks]
+  );
+
+  const isExpanded = (id: string) => completedWithResults.has(id) && !collapsed.has(id);
 
   const handleClear = async () => {
     if (!window.confirm("Clear all task history, memory, and agent queues? This cannot be undone.")) return;
@@ -36,7 +43,7 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, 
   };
 
   const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -63,7 +70,7 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, 
         <button
           onClick={handleClear}
           disabled={clearing || tasks.length === 0}
-          className="text-[11px] text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="text-[11px] text-muted hover:text-red-400 hover:border-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors px-2 py-0.5 rounded-md border border-border"
           title="Clear all task history, memory and queues"
         >
           {clearing ? "Clearing…" : "🗑 Clear history"}
@@ -145,12 +152,12 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, 
                   onClick={() => toggleExpand(task.id)}
                   className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
                 >
-                  {expanded.has(task.id) ? "▾ Hide result" : "▸ View result"}
+                  {isExpanded(task.id) ? "▾ Hide result" : "▸ View result"}
                 </button>
               )}
             </div>
-            {task.result && expanded.has(task.id) && (
-              <div className="mt-1 bg-black/40 border border-border rounded-md px-3 py-2 max-h-64 overflow-y-auto">
+            {task.result && isExpanded(task.id) && (
+              <div className="mt-1 bg-black/40 border border-border rounded-md px-3 py-2 max-h-[60vh] overflow-y-auto">
                 <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">
                   {task.result}
                 </pre>
