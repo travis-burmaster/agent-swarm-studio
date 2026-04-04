@@ -10,7 +10,7 @@ import ReplaceAgentModal from "./components/ReplaceAgentModal";
 
 export default function App() {
   const { agents, refresh: refreshAgents } = useAgents();
-  const { tasks, submit, remove, refresh: refreshTasks } = useTasks();
+  const { tasks, submit, remove, clear, refresh: refreshTasks } = useTasks();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [analyzeUrl, setAnalyzeUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -235,6 +235,7 @@ export default function App() {
             agents={agents}
             onSubmit={submit}
             onRemove={remove}
+            onClear={clear}
             onChatOrchestrator={() =>
               setSelectedAgent({
                 id: "orchestrator",

@@ -8,6 +8,7 @@ interface TaskPanelProps {
   agents: Agent[];
   onSubmit: (description: string, assignTo: string) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  onClear: () => Promise<void>;
   onChatOrchestrator: () => void;
 }
 
@@ -21,11 +22,18 @@ function statusBadge(status: Task["status"]) {
   return map[status] ?? "bg-gray-800 text-gray-400";
 }
 
-export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onChatOrchestrator }: TaskPanelProps) {
+export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, onChatOrchestrator }: TaskPanelProps) {
   const [description, setDescription] = useState("");
   const [assignTo, setAssignTo] = useState("orchestrator");
   const [submitting, setSubmitting] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => expandedSet);
+
+  const handleClear = async () => {
+    if (!window.confirm("Clear all task history, memory, and agent queues? This cannot be undone.")) return;
+    setClearing(true);
+    try { await onClear(); } finally { setClearing(false); }
+  };
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -50,9 +58,17 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onChatOrc
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">
-        Tasks
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Tasks</h2>
+        <button
+          onClick={handleClear}
+          disabled={clearing || tasks.length === 0}
+          className="text-[11px] text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          title="Clear all task history, memory and queues"
+        >
+          {clearing ? "Clearing…" : "🗑 Clear history"}
+        </button>
+      </div>
 
       {/* Task creation form */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-2">
