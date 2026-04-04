@@ -9,7 +9,7 @@ import LogStream from "./components/LogStream";
 
 export default function App() {
   const { agents, refresh: refreshAgents } = useAgents();
-  const { tasks, submit, remove, refresh: refreshTasks } = useTasks();
+  const { tasks, submit, remove, clear, refresh: refreshTasks } = useTasks();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
   const pendingCount = tasks.filter((t) => t.status === "pending" || t.status === "in_progress").length;
@@ -66,6 +66,7 @@ export default function App() {
             agents={agents}
             onSubmit={submit}
             onRemove={remove}
+            onClear={clear}
           />
         </aside>
       </div>

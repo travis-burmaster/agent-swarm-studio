@@ -89,6 +89,7 @@ services:
     volumes:
       - workspace:/shared/workspace
       - ./agents/orchestrator/prompt.md:/app/prompt.md:ro
+      - ./AGENTS.md:/app/AGENTS.md:ro
 
   coder:
     build:
@@ -109,6 +110,7 @@ services:
     volumes:
       - workspace:/shared/workspace
       - ./agents/coder/prompt.md:/app/prompt.md:ro
+      - ./AGENTS.md:/app/AGENTS.md:ro
 
   reviewer:
     build:
@@ -128,6 +130,7 @@ services:
     volumes:
       - workspace:/shared/workspace
       - ./agents/reviewer/prompt.md:/app/prompt.md:ro
+      - ./AGENTS.md:/app/AGENTS.md:ro
 
   tester:
     build:
@@ -147,6 +150,7 @@ services:
     volumes:
       - workspace:/shared/workspace
       - ./agents/tester/prompt.md:/app/prompt.md:ro
+      - ./AGENTS.md:/app/AGENTS.md:ro
 
 volumes:
   workspace:

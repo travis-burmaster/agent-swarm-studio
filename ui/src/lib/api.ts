@@ -51,6 +51,9 @@ export const createTask = (
 export const deleteTask = (id: string): Promise<void> =>
   api.delete(`/tasks/${id}`).then(() => undefined);
 
+export const clearHistory = (): Promise<{ cleared: boolean }> =>
+  api.delete("/tasks").then((r) => r.data);
+
 export const sendChat = (
   agentId: string,
   message: string

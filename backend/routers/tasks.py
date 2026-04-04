@@ -87,3 +87,42 @@ async def delete_task(task_id: str, request: Request):
     result = await db.execute("DELETE FROM tasks WHERE id = $1", task_id)
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+
+@router.delete("", status_code=200)
+async def clear_history(request: Request):
+    """Clear all task history and agent memory from Postgres and flush Redis queues.
+    This purges data in-place without stopping the stack (equivalent to volume removal but live).
+    """
+    db = request.app.state.db
+    redis = request.app.state.redis
+    config = request.app.state.agents_config
+
+    # Clear Postgres tables
+    await db.execute("TRUNCATE TABLE tasks RESTART IDENTITY CASCADE")
+    await db.execute("TRUNCATE TABLE memory RESTART IDENTITY CASCADE")
+    await db.execute("TRUNCATE TABLE chat_messages RESTART IDENTITY CASCADE")
+
+    # Flush all agent task queues in Redis
+    agent_ids = [a["id"] for a in config.get("agents", [])]
+    for agent_id in agent_ids:
+        await redis.delete(f"tasks:{agent_id}")
+        # Reset agent status to idle
+        await redis.hset(f"agent:status:{agent_id}", mapping={
+            "status": "idle",
+            "current_task": "",
+            "last_output": "",
+        })
+
+    # Broadcast clear event so UI log stream reflects it
+    await redis.publish("agent:events", json.dumps({
+        "type": "history_cleared",
+        "message": "All task history and memory has been cleared.",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }))
+
+    return {
+        "cleared": True,
+        "tables": ["tasks", "memory", "chat_messages"],
+        "queues_flushed": agent_ids,
+    }

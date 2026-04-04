@@ -90,13 +90,20 @@ async def update_task(pool: asyncpg.Pool, task_id: str, status: str, result: str
 # ── Main loop ──────────────────────────────────────────────────────────────────
 
 async def main() -> None:
-    # Load system prompt
+    # Load system prompt — AGENTS.md rules first, then role-specific prompt
+    prompt_parts = []
+    for rules_path in [Path("/app/AGENTS.md"), Path("/shared/workspace/AGENTS.md")]:
+        if rules_path.exists():
+            prompt_parts.append(f"# Swarm Rules\n{rules_path.read_text()}")
+            logger.info("Loaded swarm rules from %s", rules_path)
+            break
     if PROMPT_PATH.exists():
-        system_prompt = PROMPT_PATH.read_text()
-        logger.info("Loaded system prompt from %s", PROMPT_PATH)
+        prompt_parts.append(f"# Your Role\n{PROMPT_PATH.read_text()}")
+        logger.info("Loaded role prompt from %s", PROMPT_PATH)
     else:
-        system_prompt = f"You are a helpful AI agent with ID '{AGENT_ID}'."
+        prompt_parts.append(f"You are a helpful AI agent with ID '{AGENT_ID}'.")
         logger.warning("No prompt.md found, using default system prompt.")
+    system_prompt = "\n\n---\n\n".join(prompt_parts)
 
     # Connect to Redis
     r = aioredis.from_url(REDIS_URL, decode_responses=True)
