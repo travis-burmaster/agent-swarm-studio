@@ -1,6 +1,7 @@
 """Agent Swarm Studio — FastAPI Backend"""
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -75,6 +76,38 @@ async def lifespan(app: FastAPI):
 
     # ── Start Redis pub/sub → WebSocket broadcaster ─────────────────
     pubsub_task = asyncio.create_task(event_manager.subscribe(app.state.redis))
+
+    # ── Recover orphaned workflows (stuck in 'running' after a restart) ──
+    async def _recover_orphaned_workflows():
+        """Find workflows stuck in 'running' whose tasks are all done, and re-trigger synthesis."""
+        from routers.workflow import _watch_workflow
+        import json as _json
+
+        rows = await app.state.db.fetch(
+            "SELECT id::text, company_url, task_ids FROM workflows WHERE status = 'running'"
+        )
+        for row in rows:
+            wf_id = row["id"]
+            task_ids = _json.loads(row["task_ids"]) if row["task_ids"] else {}
+            if not task_ids:
+                continue
+            # Check if all tasks are done
+            task_rows = await app.state.db.fetch(
+                "SELECT id::text, status FROM tasks WHERE id = ANY($1::uuid[])",
+                list(task_ids.values()),
+            )
+            statuses = {r["id"]: r["status"] for r in task_rows}
+            all_done = all(s in ("completed", "failed") for s in statuses.values())
+            if all_done:
+                logging.getLogger("main").info(
+                    "Recovering orphaned workflow %s (%s) — re-triggering synthesis",
+                    wf_id, row["company_url"],
+                )
+                asyncio.create_task(
+                    _watch_workflow(wf_id, task_ids, row["company_url"], app.state.db, app.state.redis)
+                )
+
+    asyncio.create_task(_recover_orphaned_workflows())
 
     yield
 

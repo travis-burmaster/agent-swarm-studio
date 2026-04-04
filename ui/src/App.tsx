@@ -10,7 +10,7 @@ import ReplaceAgentModal from "./components/ReplaceAgentModal";
 
 export default function App() {
   const { agents, refresh: refreshAgents } = useAgents();
-  const { tasks, submit, remove, refresh: refreshTasks } = useTasks();
+  const { tasks, submit, remove, clear, refresh: refreshTasks } = useTasks();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [analyzeUrl, setAnalyzeUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -19,6 +19,7 @@ export default function App() {
   const [showSynthesis, setShowSynthesis] = useState<Task | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [replaceTarget, setReplaceTarget] = useState<Agent | null>(null);
+  const [taskPanelExpanded, setTaskPanelExpanded] = useState(false);
 
   // Prepopulate URL from backend config
   useEffect(() => {
@@ -100,14 +101,13 @@ export default function App() {
               {pendingCount} task{pendingCount !== 1 ? "s" : ""} pending
             </span>
           </div>
-          {latestSynthesis && (
-            <button
-              onClick={() => setShowSynthesis(showSynthesis ? null : latestSynthesis)}
-              className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1 rounded-md transition-colors"
-            >
-              {showSynthesis ? "Hide Summary" : "View Summary"}
-            </button>
-          )}
+          <button
+            onClick={() => latestSynthesis && setShowSynthesis(showSynthesis ? null : latestSynthesis)}
+            disabled={!latestSynthesis}
+            className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium px-3 py-1 rounded-md transition-colors"
+          >
+            {showSynthesis ? "Hide Summary" : "View Summary"}
+          </button>
           <button
             onClick={async () => {
               setRefreshing(true);
@@ -229,12 +229,22 @@ export default function App() {
         </main>
 
         {/* Right sidebar — tasks */}
-        <aside className="w-80 shrink-0 border-l border-border px-4 py-5 flex flex-col overflow-hidden">
+        <aside className={`${taskPanelExpanded ? "w-[50vw]" : "w-80"} shrink-0 border-l border-border px-4 py-5 flex flex-col overflow-hidden transition-all duration-300`}>
+          <div className="flex items-center justify-end mb-2">
+            <button
+              onClick={() => setTaskPanelExpanded(!taskPanelExpanded)}
+              className="text-xs font-medium px-3 py-1 rounded-md border border-border text-gray-300 hover:text-white hover:border-indigo-500 transition-colors"
+              title={taskPanelExpanded ? "Collapse task panel" : "Expand task panel"}
+            >
+              {taskPanelExpanded ? "▸ Collapse Panel" : "◂ Expand Panel"}
+            </button>
+          </div>
           <TaskPanel
             tasks={tasks}
             agents={agents}
             onSubmit={submit}
             onRemove={remove}
+            onClear={clear}
             onChatOrchestrator={() =>
               setSelectedAgent({
                 id: "orchestrator",

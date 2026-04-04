@@ -80,6 +80,40 @@ async def list_tasks(request: Request):
     return [dict(r) for r in rows]
 
 
+@router.delete("", response_model=Dict[str, Any])
+async def clear_all_tasks(request: Request):
+    """Clear all task history, memory, and agent queues without restarting."""
+    db = request.app.state.db
+    redis = request.app.state.redis
+
+    # Truncate tables
+    await db.execute("TRUNCATE TABLE tasks CASCADE")
+    for table in ("memory", "chat_messages"):
+        try:
+            await db.execute(f"TRUNCATE TABLE {table} CASCADE")
+        except Exception:
+            pass  # table may not exist in all deployments
+
+    # Flush all agent Redis queues and reset statuses
+    agent_ids: List[str] = []
+    try:
+        rows = await db.fetch("SELECT id FROM agents")
+        agent_ids = [r["id"] for r in rows]
+    except Exception:
+        agent_ids = ["orchestrator", "coder", "reviewer", "tester",
+                     "lawyer", "data-researcher", "marketing", "sales"]
+
+    for agent_id in agent_ids:
+        await redis.delete(f"tasks:{agent_id}")
+        await redis.hset("agent:status", agent_id, "idle")
+
+    # Broadcast event to UI via WebSocket
+    event = json.dumps({"type": "history_cleared", "timestamp": datetime.now(timezone.utc).isoformat()})
+    await redis.publish("agent:events", event)
+
+    return {"cleared": True, "tables": ["tasks", "memory", "chat_messages"], "queues_flushed": agent_ids}
+
+
 @router.delete("/{task_id}", status_code=204)
 async def delete_task(task_id: str, request: Request):
     """Delete a task by ID."""

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { createTask, deleteTask, getTasks, Task } from "../lib/api";
+import { clearAllTasks, createTask, deleteTask, getTasks, Task } from "../lib/api";
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -36,5 +36,10 @@ export function useTasks() {
     [refresh]
   );
 
-  return { tasks, submit, remove, refresh };
+  const clear = useCallback(async () => {
+    await clearAllTasks();
+    await refresh();
+  }, [refresh]);
+
+  return { tasks, submit, remove, clear, refresh };
 }
