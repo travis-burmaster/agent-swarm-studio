@@ -278,6 +278,27 @@ curl -X POST http://localhost:8000/tasks \
 
 ---
 
+## Reset Database
+
+To clear all tasks, chat history, and agent memory (tables are recreated on backend startup):
+
+```bash
+docker compose exec postgres psql -U agentuser -d agents -c "
+  DROP TABLE IF EXISTS tasks, memory, chat_messages, workflows;
+"
+docker compose restart backend
+```
+
+For a full reset including Redis cache and all Postgres data:
+
+```bash
+docker compose down
+docker volume rm agent-swarm-studio_pg-data agent-swarm-studio_redis-data
+docker compose up -d
+```
+
+---
+
 ## Credits
 
 - Built on [Agent Swarm Studio](https://github.com/travis-burmaster/agent-swarm-studio)
