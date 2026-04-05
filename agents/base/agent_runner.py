@@ -464,7 +464,16 @@ async def main() -> None:
         "- `recall_memory` — search your memory for previously saved findings and insights\n\n"
         "ALWAYS use web_fetch/web_search to gather real data. Do NOT fabricate information.\n"
         "Use recall_memory at the START of a task to check what you already know.\n"
-        "Use save_memory to store key findings, insights, and facts you want to remember."
+        "Use save_memory to store key findings, insights, and facts you want to remember.\n\n"
+        "## Task Execution Protocol\n"
+        "For every task, follow this loop:\n"
+        "1. Recall — start with recall_memory for relevant prior findings.\n"
+        "2. Plan — make a short internal plan for what you need to verify.\n"
+        "3. Gather — use web_search/web_fetch in sequence to collect evidence.\n"
+        "4. Verify — cross-check important claims against the fetched material.\n"
+        "5. Self-critique — before finalizing, look for missing evidence, weak claims, or contradictions.\n"
+        "6. Finalize — return a concise, well-structured report with clear uncertainty where needed.\n"
+        "Do not skip the self-critique step, and do not present unverified claims as facts."
     )
 
     # Connect to Redis
@@ -592,12 +601,35 @@ async def main() -> None:
                     tool_results = []
                     for block in assistant_content:
                         if block.type == "tool_use":
+                            tool_input_preview = json.dumps(block.input)[:120]
                             logger.info(
                                 "Task %s — tool call: %s(%s)",
                                 task_id, block.name,
-                                json.dumps(block.input)[:120],
+                                tool_input_preview,
+                            )
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_called",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "tool_input_preview": tool_input_preview,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
                             )
                             result_text = await execute_tool(block.name, block.input, pool)
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_result",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "result_preview": result_text[:180],
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
                             tool_results.append({
                                 "type": "tool_result",
                                 "tool_use_id": block.id,
@@ -615,7 +647,30 @@ async def main() -> None:
                     tool_results = []
                     for block in assistant_content:
                         if block.type == "tool_use":
+                            tool_input_preview = json.dumps(block.input)[:120]
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_called",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "tool_input_preview": tool_input_preview,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
                             result_text = await execute_tool(block.name, block.input, pool)
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_result",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "result_preview": result_text[:180],
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
                             tool_results.append({
                                 "type": "tool_result",
                                 "tool_use_id": block.id,

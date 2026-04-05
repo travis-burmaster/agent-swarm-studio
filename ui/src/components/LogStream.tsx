@@ -21,6 +21,10 @@ function formatEvent(ev: Record<string, unknown>): string {
       return `[${ev.agent_id}] ✗ error: ${ev.error}`
     case 'chat_message':
       return `[chat:${ev.agent_id}] ${String(ev.preview || ev.message).slice(0, 60)}`
+    case 'tool_called':
+      return `[${ev.agent_id}] 🛠 ${ev.tool_name}(${String(ev.tool_input_preview || '').slice(0, 80)})`
+    case 'tool_result':
+      return `[${ev.agent_id}] ↳ ${ev.tool_name} → ${String(ev.result_preview || '').slice(0, 90)}`
     default:
       return JSON.stringify(ev).slice(0, 120)
   }
