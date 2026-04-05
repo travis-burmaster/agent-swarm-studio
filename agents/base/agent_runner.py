@@ -464,7 +464,16 @@ async def main() -> None:
         "- `recall_memory` — search your memory for previously saved findings and insights\n\n"
         "ALWAYS use web_fetch/web_search to gather real data. Do NOT fabricate information.\n"
         "Use recall_memory at the START of a task to check what you already know.\n"
-        "Use save_memory to store key findings, insights, and facts you want to remember."
+        "Use save_memory to store key findings, insights, and facts you want to remember.\n\n"
+        "## Task Execution Protocol\n"
+        "For every task, follow this loop:\n"
+        "1. Recall — start with recall_memory for relevant prior findings.\n"
+        "2. Plan — make a short internal plan for what you need to verify.\n"
+        "3. Gather — use web_search/web_fetch in sequence to collect evidence.\n"
+        "4. Verify — cross-check important claims against the fetched material.\n"
+        "5. Self-critique — before finalizing, look for missing evidence, weak claims, or contradictions.\n"
+        "6. Finalize — return a concise, well-structured report with clear uncertainty where needed.\n"
+        "Do not skip the self-critique step, and do not present unverified claims as facts."
     )
 
     # Connect to Redis
