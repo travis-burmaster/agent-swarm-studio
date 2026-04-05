@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Agent, Task } from "../lib/api";
 
 interface TaskPanelProps {
@@ -25,16 +25,11 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, 
   const [assignTo, setAssignTo] = useState("orchestrator");
   const [submitting, setSubmitting] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Tasks with results are collapsed by default to avoid rendering huge payloads.
+  // The set tracks which tasks the user has manually EXPANDED.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // Auto-expand: all completed tasks with results are expanded by default.
-  // The set tracks which tasks the user has manually COLLAPSED.
-  const completedWithResults = useMemo(
-    () => new Set(tasks.filter((t) => t.result).map((t) => t.id)),
-    [tasks]
-  );
-
-  const isExpanded = (id: string) => completedWithResults.has(id) && !collapsed.has(id);
+  const isExpanded = (id: string) => expanded.has(id);
 
   const handleClear = async () => {
     if (!window.confirm("Clear all task history, memory, and agent queues? This cannot be undone.")) return;
@@ -43,7 +38,7 @@ export default function TaskPanel({ tasks, agents, onSubmit, onRemove, onClear, 
   };
 
   const toggleExpand = (id: string) => {
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
