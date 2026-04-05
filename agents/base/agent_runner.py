@@ -601,12 +601,35 @@ async def main() -> None:
                     tool_results = []
                     for block in assistant_content:
                         if block.type == "tool_use":
+                            tool_input_preview = json.dumps(block.input)[:120]
                             logger.info(
                                 "Task %s — tool call: %s(%s)",
                                 task_id, block.name,
-                                json.dumps(block.input)[:120],
+                                tool_input_preview,
+                            )
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_called",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "tool_input_preview": tool_input_preview,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
                             )
                             result_text = await execute_tool(block.name, block.input, pool)
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_result",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "result_preview": result_text[:180],
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
                             tool_results.append({
                                 "type": "tool_result",
                                 "tool_use_id": block.id,
@@ -624,7 +647,30 @@ async def main() -> None:
                     tool_results = []
                     for block in assistant_content:
                         if block.type == "tool_use":
+                            tool_input_preview = json.dumps(block.input)[:120]
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_called",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "tool_input_preview": tool_input_preview,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
                             result_text = await execute_tool(block.name, block.input, pool)
+                            await publish_event(
+                                r,
+                                {
+                                    "type": "tool_result",
+                                    "agent_id": AGENT_ID,
+                                    "task_id": task_id,
+                                    "tool_name": block.name,
+                                    "result_preview": result_text[:180],
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
                             tool_results.append({
                                 "type": "tool_result",
                                 "tool_use_id": block.id,
