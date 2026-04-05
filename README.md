@@ -28,7 +28,7 @@ team protocol (`AGENTS.md`), and execution instructions (`INSTRUCTIONS.md`).
 git clone https://github.com/travis-burmaster/agent-swarm-studio.git
 cd agent-swarm-studio
 cp .env.example .env
-# Edit .env: add ANTHROPIC_API_KEY and set TARGET_COMPANY_URL
+# Edit .env: add ANTHROPIC_API_KEY (or ANTHROPIC_OAUTH_KEY) and set TARGET_COMPANY_URL
 ```
 
 ### 2. Start the swarm
