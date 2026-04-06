@@ -581,6 +581,7 @@ async def main() -> None:
 
                 # Tool-use agentic loop — up to 8 rounds of tool calls
                 MAX_TOOL_ROUNDS = 8
+                tool_loop_exhausted = False
                 for _turn in range(MAX_TOOL_ROUNDS):
                     response = client.messages.create(
                         model="claude-sonnet-4-6",
@@ -636,47 +637,15 @@ async def main() -> None:
                                 "content": result_text,
                             })
                     messages.append({"role": "user", "content": tool_results})
+                else:
+                    tool_loop_exhausted = True
 
                 # If the loop ended while still doing tool_use, force a final
-                # text response by calling without tools
-                if response.stop_reason == "tool_use":
+                # text response by calling without tools. Reuse the already
+                # appended tool results instead of executing the last tool round twice.
+                if tool_loop_exhausted:
                     logger.info("Task %s — tool loop exhausted, forcing final summary", task_id)
-                    # Add the last tool-use response and results
-                    assistant_content = response.content
-                    messages.append({"role": "assistant", "content": assistant_content})
-                    tool_results = []
-                    for block in assistant_content:
-                        if block.type == "tool_use":
-                            tool_input_preview = json.dumps(block.input)[:120]
-                            await publish_event(
-                                r,
-                                {
-                                    "type": "tool_called",
-                                    "agent_id": AGENT_ID,
-                                    "task_id": task_id,
-                                    "tool_name": block.name,
-                                    "tool_input_preview": tool_input_preview,
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                },
-                            )
-                            result_text = await execute_tool(block.name, block.input, pool)
-                            await publish_event(
-                                r,
-                                {
-                                    "type": "tool_result",
-                                    "agent_id": AGENT_ID,
-                                    "task_id": task_id,
-                                    "tool_name": block.name,
-                                    "result_preview": result_text[:180],
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                },
-                            )
-                            tool_results.append({
-                                "type": "tool_result",
-                                "tool_use_id": block.id,
-                                "content": result_text,
-                            })
-                    messages.append({"role": "user", "content": tool_results + [{
+                    messages.append({"role": "user", "content": [{
                         "type": "text",
                         "text": "You have used all available tool calls. Now write your COMPLETE analysis report based on everything you have gathered. Do NOT call any more tools.",
                     }]})

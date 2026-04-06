@@ -10,3 +10,9 @@
 **Result:** kept
 **Reason:** Improves observability with a small diff and makes the swarm's search/fetch behavior visible during a run.
 
+
+## 2026-04-06 Iteration 1
+**Proposed:** Fix the tool-loop exhaustion path in `agents/base/agent_runner.py` so the final tool-use round is not executed twice before forcing a final summary.
+**Changed:** `agents/base/agent_runner.py`
+**Result:** kept
+**Reason:** Syntax check passed, and this prevents duplicate search/fetch/memory side effects when the agent hits the max tool rounds.
