@@ -294,6 +294,7 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
     # Tool-use agentic loop — up to 5 tool rounds for chat
     messages = history
     MAX_CHAT_TOOL_ROUNDS = 5
+    tool_loop_exhausted = False
     for _turn in range(MAX_CHAT_TOOL_ROUNDS):
         response = client.messages.create(
             model="claude-sonnet-4-6",
@@ -321,21 +322,13 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
                     "content": result_text,
                 })
         messages.append({"role": "user", "content": tool_results})
+    else:
+        tool_loop_exhausted = True
 
     # If loop ended while still doing tool_use, force a final text response
-    if response.stop_reason == "tool_use":
-        assistant_content = response.content
-        messages.append({"role": "assistant", "content": assistant_content})
-        tool_results = []
-        for block in assistant_content:
-            if block.type == "tool_use":
-                result_text = await execute_tool(block.name, block.input, agent_id, db)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_text,
-                })
-        messages.append({"role": "user", "content": tool_results + [{
+    # without re-running the last tool round.
+    if tool_loop_exhausted:
+        messages.append({"role": "user", "content": [{
             "type": "text",
             "text": "Provide your response now based on all the information gathered. Do not call any more tools.",
         }]})
