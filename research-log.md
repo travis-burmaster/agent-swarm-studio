@@ -22,3 +22,9 @@
 **Changed:** `backend/routers/chat.py`
 **Result:** kept
 **Reason:** Syntax check passed, and it removes duplicate tool calls and duplicate memory writes from interactive chat sessions.
+
+## 2026-04-06 Iteration 3
+**Proposed:** Publish a `tool_limit_reached` event from `agents/base/agent_runner.py` and render it in `ui/src/components/LogStream.tsx` so forced final summaries are visible in the live event stream.
+**Changed:** `agents/base/agent_runner.py`, `ui/src/components/LogStream.tsx`
+**Result:** discarded
+**Reason:** The required UI verification command failed because `npx tsc --noEmit` cannot run in this repo without TypeScript installed, so the UI change was not kept.
