@@ -16,3 +16,9 @@
 **Changed:** `agents/base/agent_runner.py`
 **Result:** kept
 **Reason:** Syntax check passed, and this prevents duplicate search/fetch/memory side effects when the agent hits the max tool rounds.
+
+## 2026-04-06 Iteration 2
+**Proposed:** Apply the same max-tool-round fix to `backend/routers/chat.py` so chat agents do not replay the final tool-use round before composing a final answer.
+**Changed:** `backend/routers/chat.py`
+**Result:** kept
+**Reason:** Syntax check passed, and it removes duplicate tool calls and duplicate memory writes from interactive chat sessions.
