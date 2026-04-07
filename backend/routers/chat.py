@@ -280,7 +280,7 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
             + task_context
         )
 
-    # Add tool instructions
+    # Add tool instructions and the same quality loop used by background agents
     system_prompt += (
         "\n\n## Available Tools\n"
         "You have access to these tools:\n"
@@ -288,7 +288,17 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
         "- `web_search` — search the web for information\n"
         "- `save_memory` — save important findings to your persistent memory\n"
         "- `recall_memory` — search your memory for previously saved findings\n\n"
-        "Use these tools when you need to look up real information or recall prior knowledge."
+        "Use these tools when you need to look up real information or recall prior knowledge.\n"
+        "Use recall_memory at the start of substantive tasks to check what you already know.\n\n"
+        "## Task Execution Protocol\n"
+        "For substantive tasks, follow this loop:\n"
+        "1. Recall — start with recall_memory for relevant prior findings.\n"
+        "2. Plan — make a short internal plan for what you need to verify.\n"
+        "3. Gather — use web_search/web_fetch in sequence to collect evidence when facts matter.\n"
+        "4. Verify — cross-check important claims against the fetched material.\n"
+        "5. Self-critique — before finalizing, look for missing evidence, weak claims, or contradictions.\n"
+        "6. Finalize — return a concise, well-structured answer with clear uncertainty where needed.\n"
+        "Do not skip the self-critique step, and do not present unverified claims as facts."
     )
 
     # Tool-use agentic loop — up to 5 tool rounds for chat

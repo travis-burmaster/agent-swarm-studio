@@ -28,3 +28,9 @@
 **Changed:** `agents/base/agent_runner.py`, `ui/src/components/LogStream.tsx`
 **Result:** discarded
 **Reason:** The required UI verification command failed because `npx tsc --noEmit` cannot run in this repo without TypeScript installed, so the UI change was not kept.
+## 2026-04-07 Iteration 1
+**Proposed:** Strengthen `backend/routers/chat.py` so direct agent chats follow the same recall → plan → gather → verify → self-critique loop used by the background runner.
+**Changed:** `backend/routers/chat.py`
+**Result:** kept
+**Reason:** Prompt-only change, syntax check passed, and it should improve chat quality/consistency without changing endpoints.
+
