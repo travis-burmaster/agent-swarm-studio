@@ -40,3 +40,9 @@
 **Result:** kept
 **Reason:** Concrete reliability/debuggability fix; syntax checks passed and the failure mode becomes much easier to diagnose.
 
+## 2026-04-07 Iteration 3
+**Proposed:** Improve `backend/routers/workflow.py` so timed-out workflows explicitly identify incomplete agents and tell the orchestrator synthesis step to acknowledge the missing coverage.
+**Changed:** `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Small observability fix; syntax check passed and the final report should stop overclaiming completeness after timeouts.
+
