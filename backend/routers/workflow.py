@@ -265,6 +265,7 @@ async def _watch_workflow(
     elapsed = 0
     poll_interval = 5
 
+    statuses = {}
     while elapsed < max_wait:
         await asyncio.sleep(poll_interval)
         elapsed += poll_interval
@@ -293,6 +294,22 @@ async def _watch_workflow(
 
         if completed + failed == len(all_task_ids):
             break
+
+    timed_out_agents = []
+    if completed + failed < len(all_task_ids):
+        timed_out_agents = [
+            agent_id for agent_id, task_id in task_ids.items()
+            if statuses.get(task_id) not in {"completed", "failed"}
+        ]
+        await redis.publish("agent:events", json.dumps({
+            "type": "workflow_timeout",
+            "workflow_id": workflow_id,
+            "timed_out_agents": timed_out_agents,
+            "completed": completed,
+            "failed": failed,
+            "total": len(all_task_ids),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }))
 
     # All done (or timed out) — gather ALL task history for full context
     now = datetime.now(timezone.utc)
@@ -344,6 +361,13 @@ async def _watch_workflow(
             + "\n\n---\n\n".join(history_parts)
         )
 
+    timeout_note = ""
+    if timed_out_agents:
+        timeout_note = (
+            "\n\nIMPORTANT: This workflow hit the watcher timeout before every agent finished. "
+            f"Treat these agents as incomplete and call out the gap explicitly: {', '.join(timed_out_agents)}."
+        )
+
     synthesis_prompt = (
         f"You are the Orchestrator for a Business Intelligence Swarm. "
         f"Your team of 4 specialist agents just analyzed {company_url}.\n\n"
@@ -352,8 +376,9 @@ async def _watch_workflow(
         f"Structure: Executive Summary, Key Findings, Risk Assessment, Opportunities, "
         f"Recommended Actions, Changes From Prior Analysis (if applicable).\n"
         f"Be thorough but concise. Cross-reference findings across agents where they "
-        f"overlap or conflict. Note any evolution from prior analyses.\n\n"
-        f"## CURRENT ANALYSIS RESULTS\n\n"
+        f"overlap or conflict. Note any evolution from prior analyses."
+        + timeout_note
+        + "\n\n## CURRENT ANALYSIS RESULTS\n\n"
         + "\n\n---\n\n".join(current_findings)
         + history_context
     )
@@ -366,8 +391,12 @@ async def _watch_workflow(
 
         if oauth_key:
             client = anthropic.Anthropic(base_url=proxy_url, api_key="oauth-proxy")
-        else:
+        elif api_key:
             client = anthropic.Anthropic(api_key=api_key)
+        else:
+            raise RuntimeError(
+                "No Anthropic credentials configured. Set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_KEY."
+            )
 
         response = client.messages.create(
             model="claude-sonnet-4-6",

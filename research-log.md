@@ -28,3 +28,21 @@
 **Changed:** `agents/base/agent_runner.py`, `ui/src/components/LogStream.tsx`
 **Result:** discarded
 **Reason:** The required UI verification command failed because `npx tsc --noEmit` cannot run in this repo without TypeScript installed, so the UI change was not kept.
+## 2026-04-07 Iteration 1
+**Proposed:** Strengthen `backend/routers/chat.py` so direct agent chats follow the same recall → plan → gather → verify → self-critique loop used by the background runner.
+**Changed:** `backend/routers/chat.py`
+**Result:** kept
+**Reason:** Prompt-only change, syntax check passed, and it should improve chat quality/consistency without changing endpoints.
+
+## 2026-04-07 Iteration 2
+**Proposed:** Add explicit Anthropic credential validation in `backend/routers/chat.py` and `backend/routers/workflow.py` so missing API/proxy config fails fast with a clear message instead of opaque downstream errors.
+**Changed:** `backend/routers/chat.py`, `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Concrete reliability/debuggability fix; syntax checks passed and the failure mode becomes much easier to diagnose.
+
+## 2026-04-07 Iteration 3
+**Proposed:** Improve `backend/routers/workflow.py` so timed-out workflows explicitly identify incomplete agents and tell the orchestrator synthesis step to acknowledge the missing coverage.
+**Changed:** `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Small observability fix; syntax check passed and the final report should stop overclaiming completeness after timeouts.
+
