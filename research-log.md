@@ -34,3 +34,9 @@
 **Result:** kept
 **Reason:** Prompt-only change, syntax check passed, and it should improve chat quality/consistency without changing endpoints.
 
+## 2026-04-07 Iteration 2
+**Proposed:** Add explicit Anthropic credential validation in `backend/routers/chat.py` and `backend/routers/workflow.py` so missing API/proxy config fails fast with a clear message instead of opaque downstream errors.
+**Changed:** `backend/routers/chat.py`, `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Concrete reliability/debuggability fix; syntax checks passed and the failure mode becomes much easier to diagnose.
+

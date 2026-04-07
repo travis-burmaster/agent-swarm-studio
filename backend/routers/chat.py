@@ -239,8 +239,13 @@ async def chat_with_agent(agent_id: str, body: ChatMessage, request: Request):
 
     if oauth_key:
         client = anthropic.Anthropic(base_url=proxy_url, api_key="oauth-proxy")
-    else:
+    elif api_key:
         client = anthropic.Anthropic(api_key=api_key)
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail="No Anthropic credentials configured. Set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_KEY.",
+        )
 
     agent_name = agent_cfg.get("name", agent_cfg["id"])
     agent_role = agent_cfg.get("role", "assistant")

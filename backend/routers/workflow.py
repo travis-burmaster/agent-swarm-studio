@@ -366,8 +366,12 @@ async def _watch_workflow(
 
         if oauth_key:
             client = anthropic.Anthropic(base_url=proxy_url, api_key="oauth-proxy")
-        else:
+        elif api_key:
             client = anthropic.Anthropic(api_key=api_key)
+        else:
+            raise RuntimeError(
+                "No Anthropic credentials configured. Set ANTHROPIC_API_KEY or ANTHROPIC_OAUTH_KEY."
+            )
 
         response = client.messages.create(
             model="claude-sonnet-4-6",
