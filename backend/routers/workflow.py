@@ -398,6 +398,16 @@ async def _watch_workflow(
         + history_context
     )
 
+    await redis.publish("agent:events", json.dumps({
+        "type": "workflow_synthesis_started",
+        "workflow_id": workflow_id,
+        "company_url": company_url,
+        "completed": completed,
+        "failed": failed,
+        "timed_out_agents": timed_out_agents,
+        "timestamp": now.isoformat(),
+    }))
+
     # Call LLM for synthesis
     try:
         oauth_key = os.getenv("ANTHROPIC_OAUTH_KEY", "").strip()

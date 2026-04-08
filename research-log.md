@@ -58,3 +58,9 @@
 **Result:** kept
 **Reason:** `python3 -m py_compile` passed, and this avoids confusing empty or duplicate workflow dispatches with a small backend-only change.
 
+## [2026-04-08] Iteration 3
+**Proposed:** Publish a `workflow_synthesis_started` event from `backend/routers/workflow.py` so the system visibly logs the handoff from agent execution to orchestrator synthesis.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile` passed, and this improves observability/debugging without changing workflow outputs or endpoints.
+
