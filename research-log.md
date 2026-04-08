@@ -52,3 +52,9 @@
 **Result:** kept
 **Reason:** `python3` AST syntax check passed, and this fixes a concrete real-use coordination bug without changing task behavior.
 
+## [2026-04-08] Iteration 2
+**Proposed:** Harden `backend/routers/workflow.py` by rejecting an empty agent roster and de-duplicating configured agent IDs before dispatching tasks.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile` passed, and this avoids confusing empty or duplicate workflow dispatches with a small backend-only change.
+

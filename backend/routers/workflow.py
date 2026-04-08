@@ -34,6 +34,23 @@ AGENT_TASKS = {
 }
 
 
+def get_active_agent_ids(config: Dict[str, Any]) -> List[str]:
+    """Return de-duplicated agent IDs from config or fail fast if none are configured."""
+    seen = set()
+    agent_ids = []
+    for agent in config.get("agents", []):
+        agent_id = str(agent.get("id", "")).strip()
+        if not agent_id or agent_id in seen:
+            continue
+        seen.add(agent_id)
+        agent_ids.append(agent_id)
+
+    if not agent_ids:
+        raise HTTPException(status_code=503, detail="No agents configured. Check AGENTS_CONFIG.")
+
+    return agent_ids
+
+
 class AnalyzeRequest(BaseModel):
     company_url: str
 
@@ -53,8 +70,7 @@ async def start_analysis(body: AnalyzeRequest, request: Request):
     db = request.app.state.db
     redis = request.app.state.redis
     config = request.app.state.agents_config
-    agents = config.get("agents", [])
-    agent_ids = [a["id"] for a in agents]
+    agent_ids = get_active_agent_ids(config)
 
     workflow_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
@@ -136,8 +152,7 @@ async def ask_all_agents(body: QuestionRequest, request: Request):
     db = request.app.state.db
     redis = request.app.state.redis
     config = request.app.state.agents_config
-    agents = config.get("agents", [])
-    agent_ids = [a["id"] for a in agents]
+    agent_ids = get_active_agent_ids(config)
 
     workflow_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
