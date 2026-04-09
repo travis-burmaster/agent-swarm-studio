@@ -56,3 +56,8 @@
 **Changed:** `ui/src/components/LogStream.tsx`
 **Result:** discarded
 **Reason:** Required UI verification failed because `npx tsc --noEmit` cannot run in this repo without TypeScript being installed locally.
+## 2026-04-09 Iteration 3
+**Proposed:** Mark timed-out or partially failed workflows as `completed_with_gaps` in `backend/routers/workflow.py` so the stored workflow status matches reality instead of overclaiming full completion.
+**Changed:** `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Syntax check passed, and the workflow record/event now communicates incomplete coverage more honestly.
