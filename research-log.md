@@ -51,3 +51,8 @@
 **Changed:** `agents/base/agent_runner.py`
 **Result:** kept
 **Reason:** Syntax check passed, and this removes an avoidable reliability footgun in the task execution loop.
+## 2026-04-09 Iteration 2
+**Proposed:** Extend `ui/src/components/LogStream.tsx` to render workflow lifecycle events (`workflow_started`, `workflow_progress`, `workflow_timeout`, `workflow_completed`) so orchestration progress is visible in the live log stream.
+**Changed:** `ui/src/components/LogStream.tsx`
+**Result:** discarded
+**Reason:** Required UI verification failed because `npx tsc --noEmit` cannot run in this repo without TypeScript being installed locally.
