@@ -46,3 +46,8 @@
 **Result:** kept
 **Reason:** Small observability fix; syntax check passed and the final report should stop overclaiming completeness after timeouts.
 
+## 2026-04-09 Iteration 1
+**Proposed:** Release the Redis task lock in `agents/base/agent_runner.py` after each task finishes so retries and recovery are not blocked by a stale 10-minute lock.
+**Changed:** `agents/base/agent_runner.py`
+**Result:** kept
+**Reason:** Syntax check passed, and this removes an avoidable reliability footgun in the task execution loop.
