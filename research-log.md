@@ -64,3 +64,18 @@
 **Result:** kept
 **Reason:** `python3 -m py_compile` passed, and this improves observability/debugging without changing workflow outputs or endpoints.
 
+## 2026-04-09 Iteration 1
+**Proposed:** Release the Redis task lock in `agents/base/agent_runner.py` after each task finishes so retries and recovery are not blocked by a stale 10-minute lock.
+**Changed:** `agents/base/agent_runner.py`
+**Result:** kept
+**Reason:** Syntax check passed, and this removes an avoidable reliability footgun in the task execution loop.
+## 2026-04-09 Iteration 2
+**Proposed:** Extend `ui/src/components/LogStream.tsx` to render workflow lifecycle events (`workflow_started`, `workflow_progress`, `workflow_timeout`, `workflow_completed`) so orchestration progress is visible in the live log stream.
+**Changed:** `ui/src/components/LogStream.tsx`
+**Result:** discarded
+**Reason:** Required UI verification failed because `npx tsc --noEmit` cannot run in this repo without TypeScript being installed locally.
+## 2026-04-09 Iteration 3
+**Proposed:** Mark timed-out or partially failed workflows as `completed_with_gaps` in `backend/routers/workflow.py` so the stored workflow status matches reality instead of overclaiming full completion.
+**Changed:** `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Syntax check passed, and the workflow record/event now communicates incomplete coverage more honestly.

@@ -433,14 +433,18 @@ async def _watch_workflow(
     except Exception as e:
         synthesis = f"Synthesis failed: {e}"
 
+    workflow_status = "completed"
+    if timed_out_agents or failed:
+        workflow_status = "completed_with_gaps"
+
     # Save synthesis
     await db.execute(
         """
         UPDATE workflows
-        SET status = 'completed', synthesis = $1, updated_at = $2
-        WHERE id = $3
+        SET status = $1, synthesis = $2, updated_at = $3
+        WHERE id = $4
         """,
-        synthesis, now, workflow_id,
+        workflow_status, synthesis, now, workflow_id,
     )
 
     # Also store synthesis as a task result for visibility in the UI
@@ -461,6 +465,7 @@ async def _watch_workflow(
         "type": "workflow_completed",
         "workflow_id": workflow_id,
         "company_url": company_url,
+        "status": workflow_status,
         "synthesis_preview": synthesis[:300],
         "timestamp": now.isoformat(),
     }))
