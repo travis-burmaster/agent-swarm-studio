@@ -52,3 +52,9 @@
 **Result:** kept
 **Reason:** `python3` syntax check passed, and this fixes a real coordination bug in the agent execution loop.
 
+## 2026-04-10 Iteration 2
+**Proposed:** Mark workflows as `partial` or `timed_out` in `backend/routers/workflow.py` and feed failed-agent gaps into synthesis instead of labeling every run `completed`.
+**Changed:** `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Backend import check passed, and workflow status now reflects incomplete agent coverage more honestly.
+
