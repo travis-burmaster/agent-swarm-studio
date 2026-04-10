@@ -46,3 +46,9 @@
 **Result:** kept
 **Reason:** Small observability fix; syntax check passed and the final report should stop overclaiming completeness after timeouts.
 
+## 2026-04-10 Iteration 1
+**Proposed:** Release task locks in `agents/base/agent_runner.py` after each task finishes or fails so retried/requeued tasks are not skipped for up to 10 minutes.
+**Changed:** `agents/base/agent_runner.py`
+**Result:** kept
+**Reason:** `python3` syntax check passed, and this fixes a real coordination bug in the agent execution loop.
+
