@@ -46,3 +46,21 @@
 **Result:** kept
 **Reason:** Small observability fix; syntax check passed and the final report should stop overclaiming completeness after timeouts.
 
+## [2026-04-08] Iteration 1
+**Proposed:** Release the Redis task lock in `agents/base/agent_runner.py` after each task finishes so retries and re-queues are not blocked for up to 10 minutes.
+**Changed:** `agents/base/agent_runner.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3` AST syntax check passed, and this fixes a concrete real-use coordination bug without changing task behavior.
+
+## [2026-04-08] Iteration 2
+**Proposed:** Harden `backend/routers/workflow.py` by rejecting an empty agent roster and de-duplicating configured agent IDs before dispatching tasks.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile` passed, and this avoids confusing empty or duplicate workflow dispatches with a small backend-only change.
+
+## [2026-04-08] Iteration 3
+**Proposed:** Publish a `workflow_synthesis_started` event from `backend/routers/workflow.py` so the system visibly logs the handoff from agent execution to orchestrator synthesis.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile` passed, and this improves observability/debugging without changing workflow outputs or endpoints.
+

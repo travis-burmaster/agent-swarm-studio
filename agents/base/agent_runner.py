@@ -704,6 +704,8 @@ async def main() -> None:
                     },
                 )
                 await update_status(r, "idle", last_output=f"ERROR: {error_msg[:100]}")
+            finally:
+                await r.delete(lock_key)
 
         except asyncio.CancelledError:
             break
