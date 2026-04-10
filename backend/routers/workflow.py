@@ -310,6 +310,10 @@ async def _watch_workflow(
         if completed + failed == len(all_task_ids):
             break
 
+    failed_agents = [
+        agent_id for agent_id, task_id in task_ids.items()
+        if statuses.get(task_id) == "failed"
+    ]
     timed_out_agents = []
     if completed + failed < len(all_task_ids):
         timed_out_agents = [
@@ -376,6 +380,13 @@ async def _watch_workflow(
             + "\n\n---\n\n".join(history_parts)
         )
 
+    failure_note = ""
+    if failed_agents:
+        failure_note = (
+            "\n\nIMPORTANT: Some agents failed during this workflow. "
+            f"Treat these perspectives as missing and call out the gap explicitly: {', '.join(failed_agents)}."
+        )
+
     timeout_note = ""
     if timed_out_agents:
         timeout_note = (
@@ -392,6 +403,7 @@ async def _watch_workflow(
         f"Recommended Actions, Changes From Prior Analysis (if applicable).\n"
         f"Be thorough but concise. Cross-reference findings across agents where they "
         f"overlap or conflict. Note any evolution from prior analyses."
+        + failure_note
         + timeout_note
         + "\n\n## CURRENT ANALYSIS RESULTS\n\n"
         + "\n\n---\n\n".join(current_findings)
@@ -434,8 +446,10 @@ async def _watch_workflow(
         synthesis = f"Synthesis failed: {e}"
 
     workflow_status = "completed"
-    if timed_out_agents or failed:
-        workflow_status = "completed_with_gaps"
+    if timed_out_agents:
+        workflow_status = "timed_out"
+    elif failed_agents:
+        workflow_status = "partial"
 
     # Save synthesis
     await db.execute(
@@ -466,6 +480,8 @@ async def _watch_workflow(
         "workflow_id": workflow_id,
         "company_url": company_url,
         "status": workflow_status,
+        "failed_agents": failed_agents,
+        "timed_out_agents": timed_out_agents,
         "synthesis_preview": synthesis[:300],
         "timestamp": now.isoformat(),
     }))

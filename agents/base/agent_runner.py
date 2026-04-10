@@ -705,6 +705,9 @@ async def main() -> None:
                 )
                 await update_status(r, "idle", last_output=f"ERROR: {error_msg[:100]}")
             finally:
+                current_lock_owner = await r.get(lock_key)
+                if current_lock_owner == AGENT_ID:
+                    await r.delete(lock_key)
                 await r.delete(lock_key)
 
         except asyncio.CancelledError:

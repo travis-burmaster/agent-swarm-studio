@@ -79,3 +79,21 @@
 **Changed:** `backend/routers/workflow.py`
 **Result:** kept
 **Reason:** Syntax check passed, and the workflow record/event now communicates incomplete coverage more honestly.
+
+## 2026-04-10 Iteration 1
+**Proposed:** Release task locks in `agents/base/agent_runner.py` after each task finishes or fails so retried/requeued tasks are not skipped for up to 10 minutes.
+**Changed:** `agents/base/agent_runner.py`
+**Result:** kept
+**Reason:** `python3` syntax check passed, and this fixes a real coordination bug in the agent execution loop.
+
+## 2026-04-10 Iteration 2
+**Proposed:** Mark workflows as `partial` or `timed_out` in `backend/routers/workflow.py` and feed failed-agent gaps into synthesis instead of labeling every run `completed`.
+**Changed:** `backend/routers/workflow.py`
+**Result:** kept
+**Reason:** Backend import check passed, and workflow status now reflects incomplete agent coverage more honestly.
+
+## 2026-04-10 Iteration 3
+**Proposed:** Render `workflow_completed` status/gap details in `ui/src/components/LogStream.tsx` so operators can see partial vs timed-out workflows in the live event stream.
+**Changed:** `ui/src/components/LogStream.tsx`
+**Result:** discarded
+**Reason:** `npx tsc --noEmit` failed because the repo does not currently have TypeScript installed, so the UI change could not be verified and was reverted.
