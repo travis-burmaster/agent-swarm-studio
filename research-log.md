@@ -58,3 +58,9 @@
 **Result:** kept
 **Reason:** Backend import check passed, and workflow status now reflects incomplete agent coverage more honestly.
 
+## 2026-04-10 Iteration 3
+**Proposed:** Render `workflow_completed` status/gap details in `ui/src/components/LogStream.tsx` so operators can see partial vs timed-out workflows in the live event stream.
+**Changed:** `ui/src/components/LogStream.tsx`
+**Result:** discarded
+**Reason:** `npx tsc --noEmit` failed because the repo does not currently have TypeScript installed, so the UI change could not be verified and was reverted.
+
