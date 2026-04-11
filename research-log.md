@@ -97,3 +97,9 @@
 **Changed:** `ui/src/components/LogStream.tsx`
 **Result:** discarded
 **Reason:** `npx tsc --noEmit` failed because the repo does not currently have TypeScript installed, so the UI change could not be verified and was reverted.
+
+## [2026-04-11] Iteration 1
+**Proposed:** Add explicit `task_phase` events in `agents/base/agent_runner.py` for recall/context/plan/gather/self-critique/finalize and remove the duplicate lock delete in the task cleanup path.
+**Changed:** `agents/base/agent_runner.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -c 'import ast; ast.parse(open("agent_runner.py").read()); print("OK")'` passed, and the swarm now exposes more of its task cycle without changing endpoints.
