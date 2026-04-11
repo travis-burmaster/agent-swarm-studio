@@ -341,6 +341,7 @@ async def _watch_workflow(
         """,
         all_task_ids,
     )
+    current_by_agent = {r["assign_to"]: r for r in current_rows}
 
     # All prior completed tasks across the swarm (historical context)
     history_rows = await db.fetch(
@@ -355,13 +356,17 @@ async def _watch_workflow(
         all_task_ids,
     )
 
-    # Build current workflow findings
+    # Build current workflow findings in configured agent order so synthesis is stable.
     current_findings = []
-    for r in current_rows:
+    agent_status_lines = []
+    for agent_id in task_ids.keys():
+        r = current_by_agent.get(agent_id)
+        status = r["status"] if r else "missing"
+        result_text = r["result"][:4000] if r and r["result"] else "(no output)"
         current_findings.append(
-            f"## {r['assign_to'].upper()} ({r['status']})\n\n"
-            f"{r['result'][:4000] if r['result'] else '(no output)'}"
+            f"## {agent_id.upper()} ({status})\n\n{result_text}"
         )
+        agent_status_lines.append(f"- {agent_id}: {status}")
 
     # Build historical context
     history_context = ""
@@ -405,6 +410,8 @@ async def _watch_workflow(
         f"overlap or conflict. Note any evolution from prior analyses."
         + failure_note
         + timeout_note
+        + "\n\n## CURRENT WORKFLOW STATUS\n"
+        + "\n".join(agent_status_lines)
         + "\n\n## CURRENT ANALYSIS RESULTS\n\n"
         + "\n\n---\n\n".join(current_findings)
         + history_context

@@ -109,3 +109,9 @@
 **Changed:** `ui/src/components/LogStream.tsx`, `research-log.md`
 **Result:** kept
 **Reason:** After `npm ci`, `npx tsc --noEmit` passed, and the live log now shows orchestration progress instead of opaque JSON blobs.
+
+## [2026-04-11] Iteration 3
+**Proposed:** Make `backend/routers/workflow.py` build synthesis input in stable agent order and include a per-agent status block so the orchestrator can more clearly reason about gaps.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile main.py routers/workflow.py services/memory.py` passed, and synthesis prompts now carry clearer swarm coordination state.
