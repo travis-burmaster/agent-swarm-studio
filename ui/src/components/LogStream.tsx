@@ -9,6 +9,8 @@ interface LogEntry {
 
 function formatEvent(ev: Record<string, unknown>): string {
   switch (ev.type) {
+    case 'task_phase':
+      return `[${ev.agent_id}] · ${ev.phase}${ev.detail ? ` | ${ev.detail}` : ''}`
     case 'agent_status':
       return `[${ev.agent_id}] status → ${ev.status}${ev.current_task ? ` | ${ev.current_task}` : ''}`
     case 'task_created':
@@ -25,6 +27,16 @@ function formatEvent(ev: Record<string, unknown>): string {
       return `[${ev.agent_id}] 🛠 ${ev.tool_name}(${String(ev.tool_input_preview || '').slice(0, 80)})`
     case 'tool_result':
       return `[${ev.agent_id}] ↳ ${ev.tool_name} → ${String(ev.result_preview || '').slice(0, 90)}`
+    case 'workflow_started':
+      return `[workflow:${ev.workflow_id}] started for ${ev.company_url}`
+    case 'workflow_progress':
+      return `[workflow:${ev.workflow_id}] progress ${ev.completed}/${ev.total} complete, ${ev.failed} failed`
+    case 'workflow_timeout':
+      return `[workflow:${ev.workflow_id}] timeout | waiting on ${String(ev.timed_out_agents || '')}`
+    case 'workflow_synthesis_started':
+      return `[workflow:${ev.workflow_id}] synthesizing final briefing`
+    case 'workflow_completed':
+      return `[workflow:${ev.workflow_id}] ${ev.status} | preview: ${String(ev.synthesis_preview || '').slice(0, 80)}`
     default:
       return JSON.stringify(ev).slice(0, 120)
   }

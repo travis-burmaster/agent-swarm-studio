@@ -103,3 +103,9 @@
 **Changed:** `agents/base/agent_runner.py`, `research-log.md`
 **Result:** kept
 **Reason:** `python3 -c 'import ast; ast.parse(open("agent_runner.py").read()); print("OK")'` passed, and the swarm now exposes more of its task cycle without changing endpoints.
+
+## [2026-04-11] Iteration 2
+**Proposed:** Extend `ui/src/components/LogStream.tsx` to render the new `task_phase` events plus workflow lifecycle events already emitted by the backend.
+**Changed:** `ui/src/components/LogStream.tsx`, `research-log.md`
+**Result:** kept
+**Reason:** After `npm ci`, `npx tsc --noEmit` passed, and the live log now shows orchestration progress instead of opaque JSON blobs.
