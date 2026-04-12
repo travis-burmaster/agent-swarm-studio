@@ -25,6 +25,16 @@ function formatEvent(ev: Record<string, unknown>): string {
       return `[${ev.agent_id}] 🛠 ${ev.tool_name}(${String(ev.tool_input_preview || '').slice(0, 80)})`
     case 'tool_result':
       return `[${ev.agent_id}] ↳ ${ev.tool_name} → ${String(ev.result_preview || '').slice(0, 90)}`
+    case 'workflow_started':
+      return `[workflow:${ev.workflow_id}] ▶ started for ${ev.company_url} | agents: ${Array.isArray(ev.agents) ? ev.agents.join(', ') : ev.agents}`
+    case 'workflow_progress':
+      return `[workflow:${ev.workflow_id}] … progress ${ev.completed}/${ev.total} complete, ${ev.failed} failed`
+    case 'workflow_timeout':
+      return `[workflow:${ev.workflow_id}] ⏱ timeout | waiting on: ${Array.isArray(ev.timed_out_agents) ? ev.timed_out_agents.join(', ') : ev.timed_out_agents}`
+    case 'workflow_synthesis_started':
+      return `[workflow:${ev.workflow_id}] 🧠 synthesis started | completed=${ev.completed}, failed=${ev.failed}${Array.isArray(ev.timed_out_agents) && ev.timed_out_agents.length ? `, timed out: ${ev.timed_out_agents.join(', ')}` : ''}`
+    case 'workflow_completed':
+      return `[workflow:${ev.workflow_id}] ✓ ${ev.status} for ${ev.company_url}${Array.isArray(ev.failed_agents) && ev.failed_agents.length ? ` | failed: ${ev.failed_agents.join(', ')}` : ''}${Array.isArray(ev.timed_out_agents) && ev.timed_out_agents.length ? ` | timed out: ${ev.timed_out_agents.join(', ')}` : ''}`
     default:
       return JSON.stringify(ev).slice(0, 120)
   }
