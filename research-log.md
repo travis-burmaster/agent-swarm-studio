@@ -103,3 +103,9 @@
 **Changed:** `agents/base/agent_runner.py`, `research-log.md`
 **Result:** kept
 **Reason:** `python3` AST syntax check passed, and the cleanup path now matches the intended lock-ownership semantics.
+
+## [2026-04-12] Iteration 2
+**Proposed:** Make `backend/routers/workflow.py` build synthesis input in stable agent order and include explicit task/status lines for each agent so the orchestrator can reason about missing or partial coverage more reliably.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile main.py routers/workflow.py services/memory.py` passed, and the synthesis prompt now carries clearer, deterministic swarm state.
