@@ -355,12 +355,25 @@ async def _watch_workflow(
         all_task_ids,
     )
 
-    # Build current workflow findings
+    # Build current workflow findings in stable agent order so synthesis sees
+    # the same roster ordering every run and can reason about missing coverage.
+    row_by_agent = {str(r['assign_to']): r for r in current_rows}
     current_findings = []
-    for r in current_rows:
+    for agent_id in task_ids.keys():
+        row = row_by_agent.get(agent_id)
+        if row is None:
+            current_findings.append(
+                f"## {agent_id.upper()} (missing)\n\n"
+                "Task record not found for this workflow agent. Treat this perspective as unavailable."
+            )
+            continue
+
+        task_status = row['status'] or 'unknown'
         current_findings.append(
-            f"## {r['assign_to'].upper()} ({r['status']})\n\n"
-            f"{r['result'][:4000] if r['result'] else '(no output)'}"
+            f"## {agent_id.upper()} ({task_status})\n\n"
+            f"Task: {row['description']}\n"
+            f"Status: {task_status}\n\n"
+            f"{row['result'][:4000] if row['result'] else '(no output)'}"
         )
 
     # Build historical context
