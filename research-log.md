@@ -97,3 +97,21 @@
 **Changed:** `ui/src/components/LogStream.tsx`
 **Result:** discarded
 **Reason:** `npx tsc --noEmit` failed because the repo does not currently have TypeScript installed, so the UI change could not be verified and was reverted.
+
+## [2026-04-11] Iteration 1
+**Proposed:** Add explicit `task_phase` events in `agents/base/agent_runner.py` for recall/context/plan/gather/self-critique/finalize and remove the duplicate lock delete in the task cleanup path.
+**Changed:** `agents/base/agent_runner.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -c 'import ast; ast.parse(open("agent_runner.py").read()); print("OK")'` passed, and the swarm now exposes more of its task cycle without changing endpoints.
+
+## [2026-04-11] Iteration 2
+**Proposed:** Extend `ui/src/components/LogStream.tsx` to render the new `task_phase` events plus workflow lifecycle events already emitted by the backend.
+**Changed:** `ui/src/components/LogStream.tsx`, `research-log.md`
+**Result:** kept
+**Reason:** After `npm ci`, `npx tsc --noEmit` passed, and the live log now shows orchestration progress instead of opaque JSON blobs.
+
+## [2026-04-11] Iteration 3
+**Proposed:** Make `backend/routers/workflow.py` build synthesis input in stable agent order and include a per-agent status block so the orchestrator can more clearly reason about gaps.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile main.py routers/workflow.py services/memory.py` passed, and synthesis prompts now carry clearer swarm coordination state.

@@ -294,6 +294,25 @@ async def publish_event(r: aioredis.Redis, event: dict) -> None:
     await r.publish(EVENTS_CHANNEL, json.dumps(event))
 
 
+async def publish_task_phase(
+    r: aioredis.Redis,
+    task_id: str,
+    phase: str,
+    detail: str = "",
+) -> None:
+    await publish_event(
+        r,
+        {
+            "type": "task_phase",
+            "agent_id": AGENT_ID,
+            "task_id": task_id,
+            "phase": phase,
+            "detail": detail[:180] or None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
 async def update_status(
     r: aioredis.Redis,
     status: str,
@@ -561,12 +580,15 @@ async def main() -> None:
             await update_task(pool, task_id, "in_progress", "")
 
             try:
+                await publish_task_phase(r, task_id, "recall", "Loading prior swarm task history")
                 # Load task history from ALL agents in the swarm
                 task_history = await load_all_task_history(pool)
 
+                await publish_task_phase(r, task_id, "context", "Loading prior agent findings for this company")
                 # Load prior agent context (other agents' findings)
                 prior_context = await load_company_context(r, company_url)
 
+                await publish_task_phase(r, task_id, "plan", "Building task prompt with workflow context")
                 # Build the full user message
                 user_message = description
                 if company_url:
@@ -579,6 +601,7 @@ async def main() -> None:
                 # Call LLM with tools and handle tool-use loop
                 messages = [{"role": "user", "content": user_message}]
 
+                await publish_task_phase(r, task_id, "gather", "Running tool-assisted analysis loop")
                 # Tool-use agentic loop — up to 8 rounds of tool calls
                 MAX_TOOL_ROUNDS = 8
                 tool_loop_exhausted = False
@@ -656,6 +679,7 @@ async def main() -> None:
                         messages=messages,
                     )
 
+                await publish_task_phase(r, task_id, "self_critique", "Reviewing gathered evidence and producing final answer")
                 # Extract final text output
                 output = ""
                 for block in response.content:
@@ -663,6 +687,7 @@ async def main() -> None:
                         output += block.text
                 logger.info("Task %s completed (%d chars)", task_id, len(output))
 
+                await publish_task_phase(r, task_id, "finalize", "Persisting result and sharing cross-agent context")
                 # Cache output for other agents
                 if company_url:
                     await cache_agent_output(r, company_url, output)
@@ -708,7 +733,6 @@ async def main() -> None:
                 current_lock_owner = await r.get(lock_key)
                 if current_lock_owner == AGENT_ID:
                     await r.delete(lock_key)
-                await r.delete(lock_key)
 
         except asyncio.CancelledError:
             break
