@@ -97,3 +97,9 @@
 **Changed:** `ui/src/components/LogStream.tsx`
 **Result:** discarded
 **Reason:** `npx tsc --noEmit` failed because the repo does not currently have TypeScript installed, so the UI change could not be verified and was reverted.
+
+## [2026-04-12] Iteration 1
+**Proposed:** Remove the duplicate Redis task-lock deletion in `agents/base/agent_runner.py` so lock cleanup only happens when this worker still owns the lock.
+**Changed:** `agents/base/agent_runner.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3` AST syntax check passed, and the cleanup path now matches the intended lock-ownership semantics.
