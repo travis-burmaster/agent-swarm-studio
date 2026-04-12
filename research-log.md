@@ -109,3 +109,9 @@
 **Changed:** `backend/routers/workflow.py`, `research-log.md`
 **Result:** kept
 **Reason:** `python3 -m py_compile main.py routers/workflow.py services/memory.py` passed, and the synthesis prompt now carries clearer, deterministic swarm state.
+
+## [2026-04-12] Iteration 3
+**Proposed:** Extend `ui/src/components/LogStream.tsx` to render workflow lifecycle events as readable log lines instead of opaque JSON.
+**Changed:** `ui/src/components/LogStream.tsx`, `research-log.md`
+**Result:** kept
+**Reason:** `npx tsc --noEmit` passed after installing UI dependencies, and operators can now follow orchestration progress directly in the live log.
