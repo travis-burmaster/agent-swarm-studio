@@ -9,6 +9,8 @@ interface LogEntry {
 
 function formatEvent(ev: Record<string, unknown>): string {
   switch (ev.type) {
+    case 'task_phase':
+      return `[${ev.agent_id}] · ${ev.phase}${ev.detail ? ` | ${ev.detail}` : ''}`
     case 'agent_status':
       return `[${ev.agent_id}] status → ${ev.status}${ev.current_task ? ` | ${ev.current_task}` : ''}`
     case 'task_created':

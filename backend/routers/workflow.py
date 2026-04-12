@@ -341,6 +341,7 @@ async def _watch_workflow(
         """,
         all_task_ids,
     )
+    current_by_agent = {r["assign_to"]: r for r in current_rows}
 
     # All prior completed tasks across the swarm (historical context)
     history_rows = await db.fetch(
@@ -357,8 +358,9 @@ async def _watch_workflow(
 
     # Build current workflow findings in stable agent order so synthesis sees
     # the same roster ordering every run and can reason about missing coverage.
-    row_by_agent = {str(r['assign_to']): r for r in current_rows}
+    row_by_agent = {str(r["assign_to"]): r for r in current_rows}
     current_findings = []
+    agent_status_lines = []
     for agent_id in task_ids.keys():
         row = row_by_agent.get(agent_id)
         if row is None:
@@ -366,15 +368,18 @@ async def _watch_workflow(
                 f"## {agent_id.upper()} (missing)\n\n"
                 "Task record not found for this workflow agent. Treat this perspective as unavailable."
             )
+            agent_status_lines.append(f"- {agent_id}: missing")
             continue
 
-        task_status = row['status'] or 'unknown'
+        task_status = row["status"] or "unknown"
+        result_text = row["result"][:4000] if row["result"] else "(no output)"
         current_findings.append(
             f"## {agent_id.upper()} ({task_status})\n\n"
             f"Task: {row['description']}\n"
             f"Status: {task_status}\n\n"
-            f"{row['result'][:4000] if row['result'] else '(no output)'}"
+            f"{result_text}"
         )
+        agent_status_lines.append(f"- {agent_id}: {task_status}")
 
     # Build historical context
     history_context = ""
@@ -418,6 +423,8 @@ async def _watch_workflow(
         f"overlap or conflict. Note any evolution from prior analyses."
         + failure_note
         + timeout_note
+        + "\n\n## CURRENT WORKFLOW STATUS\n"
+        + "\n".join(agent_status_lines)
         + "\n\n## CURRENT ANALYSIS RESULTS\n\n"
         + "\n\n---\n\n".join(current_findings)
         + history_context
