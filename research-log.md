@@ -98,6 +98,7 @@
 **Result:** discarded
 **Reason:** `npx tsc --noEmit` failed because the repo does not currently have TypeScript installed, so the UI change could not be verified and was reverted.
 
+
 ## [2026-04-11] Iteration 1
 **Proposed:** Add explicit `task_phase` events in `agents/base/agent_runner.py` for recall/context/plan/gather/self-critique/finalize and remove the duplicate lock delete in the task cleanup path.
 **Changed:** `agents/base/agent_runner.py`, `research-log.md`
@@ -115,3 +116,21 @@
 **Changed:** `backend/routers/workflow.py`, `research-log.md`
 **Result:** kept
 **Reason:** `python3 -m py_compile main.py routers/workflow.py services/memory.py` passed, and synthesis prompts now carry clearer swarm coordination state.
+
+## [2026-04-12] Iteration 1
+**Proposed:** Remove the duplicate Redis task-lock deletion in `agents/base/agent_runner.py` so lock cleanup only happens when this worker still owns the lock.
+**Changed:** `agents/base/agent_runner.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3` AST syntax check passed, and the cleanup path now matches the intended lock-ownership semantics.
+
+## [2026-04-12] Iteration 2
+**Proposed:** Make `backend/routers/workflow.py` build synthesis input in stable agent order and include explicit task/status lines for each agent so the orchestrator can reason about missing or partial coverage more reliably.
+**Changed:** `backend/routers/workflow.py`, `research-log.md`
+**Result:** kept
+**Reason:** `python3 -m py_compile main.py routers/workflow.py services/memory.py` passed, and the synthesis prompt now carries clearer, deterministic swarm state.
+
+## [2026-04-12] Iteration 3
+**Proposed:** Extend `ui/src/components/LogStream.tsx` to render workflow lifecycle events as readable log lines instead of opaque JSON.
+**Changed:** `ui/src/components/LogStream.tsx`, `research-log.md`
+**Result:** kept
+**Reason:** `npx tsc --noEmit` passed after installing UI dependencies, and operators can now follow orchestration progress directly in the live log.
