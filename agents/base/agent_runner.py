@@ -708,7 +708,6 @@ async def main() -> None:
                 current_lock_owner = await r.get(lock_key)
                 if current_lock_owner == AGENT_ID:
                     await r.delete(lock_key)
-                await r.delete(lock_key)
 
         except asyncio.CancelledError:
             break
